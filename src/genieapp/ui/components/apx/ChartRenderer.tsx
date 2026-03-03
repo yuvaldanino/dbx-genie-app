@@ -9,6 +9,7 @@ import {
   PieChart as PieChartIcon,
   AreaChart as AreaChartIcon,
   Hash,
+  MapPin,
 } from "lucide-react";
 import {
   BarChart,
@@ -28,6 +29,7 @@ import {
   Legend,
 } from "recharts";
 import { Button } from "@/components/ui/button";
+import { MapRenderer } from "./MapRenderer";
 import type { ChartSuggestion } from "@/lib/api";
 
 const COLORS = [
@@ -46,6 +48,7 @@ const CHART_TYPES = [
   { type: "area", icon: AreaChartIcon, label: "Area" },
   { type: "pie", icon: PieChartIcon, label: "Pie" },
   { type: "kpi", icon: Hash, label: "KPI" },
+  { type: "map", icon: MapPin, label: "Map" },
 ] as const;
 
 type ChartType = (typeof CHART_TYPES)[number]["type"];
@@ -77,6 +80,35 @@ export function ChartRenderer({ suggestion, data, columns }: ChartRendererProps)
 
   const numericCols = columns.filter((c) => isNumericColumn(data, c));
   const chartData = yAxis ? coerceNumeric(data, yAxis) : data;
+
+  // Map — lat/lon markers
+  if (chartType === "map") {
+    // x_axis = lon column, y_axis = lat column, title = label column
+    const latCol = yAxis || columns.find((c) => /^lat/i.test(c)) || columns[0];
+    const lonCol = xAxis || columns.find((c) => /^lo?n/i.test(c)) || columns[1];
+    const labelCol = suggestion.title && columns.includes(suggestion.title) ? suggestion.title : undefined;
+    return (
+      <div className="space-y-2">
+        <ChartToolbar
+          chartType={chartType}
+          onTypeChange={setChartType}
+          columns={columns}
+          numericCols={numericCols}
+          xAxis={xAxis}
+          yAxis={yAxis}
+          onXChange={setXAxis}
+          onYChange={setYAxis}
+        />
+        <MapRenderer
+          data={data}
+          latColumn={latCol}
+          lonColumn={lonCol}
+          labelColumn={labelCol}
+          columns={columns}
+        />
+      </div>
+    );
+  }
 
   // KPI — single large number
   if (chartType === "kpi") {

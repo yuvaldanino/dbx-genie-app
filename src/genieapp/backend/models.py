@@ -52,7 +52,7 @@ class ChatMessageIn(BaseModel):
 class ChartSuggestion(BaseModel):
     """Suggested chart configuration based on query results."""
 
-    chart_type: str = Field(description="bar, line, pie, area, kpi, or table")
+    chart_type: str = Field(description="bar, line, pie, area, kpi, map, or table")
     x_axis: str | None = None
     y_axis: str | None = None
     title: str = ""

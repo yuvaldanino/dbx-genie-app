@@ -12,6 +12,7 @@ import {
   Copy,
   Check,
   BarChart3,
+  MapPin,
   ThumbsUp,
   ThumbsDown,
   AlertTriangle,
@@ -90,15 +91,15 @@ export function MessageBubble({ question, response, onAskQuestion }: MessageBubb
           <div className="bg-primary text-primary-foreground rounded-2xl rounded-tr-sm px-4 py-2.5">
             <p className="text-sm">{question}</p>
           </div>
-          <div className="shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-            <User className="h-4 w-4" />
+          <div className="shrink-0 w-8 h-8 rounded-full bg-primary/15 flex items-center justify-center">
+            <User className="h-4 w-4 text-primary" />
           </div>
         </div>
       </div>
 
       {/* Genie response */}
       <div className="flex justify-start">
-        <Card className="max-w-[85%] overflow-hidden">
+        <Card className="max-w-[85%] overflow-hidden border-accent/30 bg-accent/5">
           <div className="p-4 space-y-3">
             {/* Error */}
             {response.error && (
@@ -205,8 +206,11 @@ export function MessageBubble({ question, response, onAskQuestion }: MessageBubb
                   className="gap-1.5 text-xs"
                   onClick={() => setChartVisible(true)}
                 >
-                  <BarChart3 className="h-3.5 w-3.5" />
-                  Visualize
+                  {response.chart_suggestion?.chart_type === "map" ? (
+                    <><MapPin className="h-3.5 w-3.5" /> Map</>
+                  ) : (
+                    <><BarChart3 className="h-3.5 w-3.5" /> Visualize</>
+                  )}
                 </Button>
               )
             )}

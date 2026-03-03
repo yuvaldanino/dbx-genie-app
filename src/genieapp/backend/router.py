@@ -194,16 +194,15 @@ def get_chat_result(
         message_id=msg_id,
     )
 
-    # Find and update stored question
-    question = None
+    # Update stored entry (already created by start_chat)
     if conv_id in _conversations:
         for entry in _conversations[conv_id]:
             if entry.get("message_id") == msg_id:
-                question = entry.get("question")
                 entry["result"] = result
                 break
 
-    return _result_to_response(result, question=question)
+    # Don't pass question — entry already exists from start_chat
+    return _result_to_response(result, question=None)
 
 
 # --- Feedback ---

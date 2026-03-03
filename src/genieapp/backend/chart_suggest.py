@@ -12,6 +12,8 @@ from .models import ChartSuggestion
 DATE_PATTERNS = {"date", "time", "month", "year", "quarter", "week", "day", "period"}
 NUMERIC_PATTERNS = {"count", "sum", "avg", "total", "amount", "price", "revenue", "cost", "profit", "quantity", "sales", "margin", "rate", "percent", "value"}
 CATEGORY_PATTERNS = {"name", "category", "type", "tier", "status", "region", "industry", "segment", "group", "department"}
+GEO_LAT_PATTERNS = {"lat", "latitude"}
+GEO_LON_PATTERNS = {"lon", "lng", "longitude"}
 
 
 def _is_date_column(name: str) -> bool:
@@ -43,6 +45,18 @@ def _is_category_column(name: str) -> bool:
     return any(p in lower for p in CATEGORY_PATTERNS)
 
 
+def _find_geo_columns(columns: list[str]) -> tuple[str | None, str | None]:
+    """Find latitude and longitude columns by name. Returns (lat_col, lon_col)."""
+    lat_col = lon_col = None
+    for c in columns:
+        lower = c.lower().strip()
+        if lower in GEO_LAT_PATTERNS:
+            lat_col = c
+        elif lower in GEO_LON_PATTERNS:
+            lon_col = c
+    return lat_col, lon_col
+
+
 def suggest_chart(columns: list[str], data: list[dict]) -> ChartSuggestion | None:
     """Suggest a chart type based on column names and data.
 
@@ -62,6 +76,22 @@ def suggest_chart(columns: list[str], data: list[dict]) -> ChartSuggestion | Non
             chart_type="kpi",
             y_axis=columns[0],
             title=columns[0].replace("_", " ").title(),
+        )
+
+    # Geo columns → map
+    lat_col, lon_col = _find_geo_columns(columns)
+    if lat_col and lon_col:
+        # Find a label column (name, company, etc.) for popups
+        label_col = None
+        for c in columns:
+            if c not in (lat_col, lon_col) and not _is_numeric_column(c, []):
+                label_col = c
+                break
+        return ChartSuggestion(
+            chart_type="map",
+            x_axis=lon_col,
+            y_axis=lat_col,
+            title=label_col or "Locations",
         )
 
     # Classify columns

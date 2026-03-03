@@ -253,8 +253,8 @@ function ChatPage() {
                     </div>
                     <div className="flex justify-start">
                       <div className="flex items-center gap-2 px-4 py-3">
-                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                        <span className="text-sm text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin text-accent" />
+                        <span className="text-sm text-accent">
                           {msg.statusText || "Thinking..."}
                         </span>
                       </div>

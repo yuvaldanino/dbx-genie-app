@@ -108,13 +108,13 @@ function SidebarLayout() {
         <nav className="p-2 space-y-1">
           <Link to="/">
             <Button variant="ghost" className="w-full justify-start gap-2">
-              <Home className="h-4 w-4" />
+              <Home className="h-4 w-4 text-primary" />
               Home
             </Button>
           </Link>
           <Link to="/chat">
             <Button variant="ghost" className="w-full justify-start gap-2">
-              <MessageSquare className="h-4 w-4" />
+              <MessageSquare className="h-4 w-4 text-primary" />
               Chat
             </Button>
           </Link>
@@ -133,7 +133,7 @@ function SidebarLayout() {
                   className="w-full justify-between gap-2"
                 >
                   <span className="flex items-center gap-2">
-                    <Database className="h-4 w-4" />
+                    <Database className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                     Tables
                   </span>
                   <ChevronDown
@@ -155,7 +155,7 @@ function SidebarLayout() {
                       ) : (
                         <ChevronRight className="h-3 w-3 shrink-0" />
                       )}
-                      <Table2 className="h-3 w-3 shrink-0" />
+                      <Table2 className="h-3 w-3 shrink-0 text-emerald-500 dark:text-emerald-500" />
                       <span className="truncate">{table.table_name}</span>
                     </Button>
                     {expandedTable === table.table_name && (
@@ -177,7 +177,7 @@ function SidebarLayout() {
                     className="w-full justify-between gap-2"
                   >
                     <span className="flex items-center gap-2">
-                      <History className="h-4 w-4" />
+                      <History className="h-4 w-4 text-violet-600 dark:text-violet-400" />
                       History
                     </span>
                     <ChevronDown

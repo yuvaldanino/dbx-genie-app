@@ -29,7 +29,7 @@ export interface AppConfigOut {
 }
 
 export interface ChartSuggestion {
-  chart_type: "bar" | "line" | "pie" | "area" | "kpi" | "table";
+  chart_type: "bar" | "line" | "pie" | "area" | "kpi" | "map" | "table";
   x_axis: string | null;
   y_axis: string | null;
   title: string;

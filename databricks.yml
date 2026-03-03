@@ -23,7 +23,7 @@ variables:
   secondary_color:
     default: "#ea4335"
   existing_space_id:
-    default: ""
+    default: "01f1170f66e21a439537fe87ffd13c55"
 
 targets:
   dev:

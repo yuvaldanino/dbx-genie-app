@@ -7,6 +7,7 @@ import { createFileRoute, useSearch } from "@tanstack/react-router";
 import {
   useAppConfig,
   useStartChat,
+  useConversationMessages,
   getChatStatus,
   getChatResult,
   type ChatMessageOut,
@@ -56,6 +57,23 @@ function ChatPage() {
   const [conversationId, setConversationId] = useState<string | undefined>(initialConvId);
   const [isSending, setIsSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Load conversation messages when navigating from history
+  const { data: loadedMessages } = useConversationMessages(initialConvId);
+  const [loadedConvId, setLoadedConvId] = useState<string | undefined>();
+
+  useEffect(() => {
+    if (loadedMessages && initialConvId && initialConvId !== loadedConvId) {
+      setLoadedConvId(initialConvId);
+      setConversationId(initialConvId);
+      setMessages(
+        loadedMessages.map((m) => ({
+          question: m.question,
+          response: m.response ?? undefined,
+        })),
+      );
+    }
+  }, [loadedMessages, initialConvId, loadedConvId]);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {

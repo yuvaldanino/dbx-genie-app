@@ -145,3 +145,10 @@ class ConversationOut(BaseModel):
     conversation_id: str
     first_question: str = ""
     message_count: int = 0
+
+
+class ConversationMessageOut(BaseModel):
+    """A single message pair (question + response) in a conversation."""
+
+    question: str
+    response: ChatMessageOut | None = None

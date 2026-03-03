@@ -28,6 +28,7 @@ from .models import (
     ChatStatusOut,
     ChartSuggestion,
     ColumnInfo,
+    ConversationMessageOut,
     ConversationOut,
     ExportRequest,
     FeedbackIn,
@@ -282,6 +283,44 @@ async def list_conversations() -> list[ConversationOut]:
         )
         for conv_id, messages in _conversations.items()
     ]
+
+
+@router.get(
+    "/conversations/{conv_id}",
+    response_model=list[ConversationMessageOut],
+    operation_id="getConversationMessages",
+)
+async def get_conversation_messages(conv_id: str) -> list[ConversationMessageOut]:
+    """Get all messages in a conversation."""
+    entries = _conversations.get(conv_id, [])
+    messages = []
+    for entry in entries:
+        result = entry.get("result")
+        response = None
+        if result:
+            chart = suggest_chart(result.get("columns", []), result.get("data", []))
+            response = ChatMessageOut(
+                conversation_id=result.get("conversation_id", conv_id),
+                message_id=result.get("message_id", ""),
+                status=result.get("status", "COMPLETED"),
+                description=result.get("description", ""),
+                sql=result.get("sql", ""),
+                columns=result.get("columns", []),
+                data=result.get("data", []),
+                row_count=result.get("row_count", 0),
+                chart_suggestion=chart,
+                error=result.get("error"),
+                suggested_questions=result.get("suggested_questions", []),
+                query_description=result.get("query_description", ""),
+                is_truncated=result.get("is_truncated", False),
+                is_clarification=result.get("is_clarification", False),
+                error_type=result.get("error_type", ""),
+            )
+        messages.append(ConversationMessageOut(
+            question=entry.get("question", ""),
+            response=response,
+        ))
+    return messages
 
 
 # --- Export ---

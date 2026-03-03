@@ -95,6 +95,11 @@ export interface ConversationOut {
   message_count: number;
 }
 
+export interface ConversationMessageOut {
+  question: string;
+  response: ChatMessageOut | null;
+}
+
 // --- API Functions ---
 
 export async function getAppConfig(): Promise<AppConfigOut> {
@@ -165,6 +170,15 @@ export async function listConversations(): Promise<ConversationOut[]> {
   return data;
 }
 
+export async function getConversationMessages(
+  conversationId: string,
+): Promise<ConversationMessageOut[]> {
+  const { data } = await api.get<ConversationMessageOut[]>(
+    `/conversations/${conversationId}`,
+  );
+  return data;
+}
+
 export async function exportConversation(
   conversationId: string,
   format: "json" | "csv" = "csv",
@@ -221,6 +235,16 @@ export function useConversations(
     queryFn: listConversations,
     staleTime: 10_000,
     ...options,
+  });
+}
+
+export function useConversationMessages(
+  conversationId: string | undefined,
+) {
+  return useQuery({
+    queryKey: ["conversationMessages", conversationId],
+    queryFn: () => getConversationMessages(conversationId!),
+    enabled: !!conversationId,
   });
 }
 

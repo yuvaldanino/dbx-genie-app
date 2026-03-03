@@ -1,0 +1,15 @@
+command:
+  - uvicorn
+  - genieapp.backend.app:app
+  - --host
+  - 0.0.0.0
+  - --port
+  - "8000"
+
+env:
+  - name: PYTHONPATH
+    value: src
+  - name: STATE_FILE_PATH
+    value: /Volumes/startups_catalog/dw_genie/raw_data/state.json
+  - name: DATABRICKS_WAREHOUSE_ID
+    valueFrom: sql-warehouse

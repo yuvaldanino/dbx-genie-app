@@ -1,0 +1,33 @@
+bundle:
+  name: genieapp
+
+include:
+  - resources/*.yml
+
+variables:
+  catalog:
+    default: startups_catalog
+  schema:
+    default: dw_genie
+  warehouse_id:
+    lookup:
+      warehouse: "Serverless Starter Warehouse"
+  display_name:
+    default: "Acme Analytics"
+  company_name:
+    default: "Acme Corporation"
+  company_description:
+    default: "Global leader in industrial supplies and equipment, serving customers across 12 industries worldwide."
+  primary_color:
+    default: "#1a73e8"
+  secondary_color:
+    default: "#ea4335"
+  existing_space_id:
+    default: ""
+
+targets:
+  dev:
+    default: true
+    mode: development
+    workspace:
+      profile: vm

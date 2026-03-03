@@ -1,0 +1,147 @@
+"""Pydantic models for the GenieApp API."""
+
+from __future__ import annotations
+
+from pydantic import BaseModel, Field
+
+from .. import __version__
+
+
+# --- Version ---
+
+class VersionOut(BaseModel):
+    """Application version info."""
+
+    version: str
+
+    @classmethod
+    def from_metadata(cls) -> VersionOut:
+        return cls(version=__version__)
+
+
+# --- App Config ---
+
+class BrandingOut(BaseModel):
+    """Branding configuration sent to frontend."""
+
+    company_name: str
+    description: str
+    logo_path: str = ""
+    primary_color: str = "#1a73e8"
+    secondary_color: str = "#ea4335"
+
+
+class AppConfigOut(BaseModel):
+    """Full app config for frontend initialization."""
+
+    space_id: str
+    display_name: str
+    sample_questions: list[str] = []
+    branding: BrandingOut
+
+
+# --- Chat ---
+
+class ChatMessageIn(BaseModel):
+    """User chat message input."""
+
+    question: str
+    conversation_id: str | None = None
+
+
+class ChartSuggestion(BaseModel):
+    """Suggested chart configuration based on query results."""
+
+    chart_type: str = Field(description="bar, line, pie, area, kpi, or table")
+    x_axis: str | None = None
+    y_axis: str | None = None
+    title: str = ""
+
+
+class ChatMessageOut(BaseModel):
+    """Genie response with data and chart suggestion."""
+
+    conversation_id: str
+    message_id: str = ""
+    status: str  # COMPLETED, FAILED, etc.
+    description: str = ""
+    sql: str = ""
+    columns: list[str] = []
+    data: list[dict] = []
+    row_count: int = 0
+    chart_suggestion: ChartSuggestion | None = None
+    error: str | None = None
+    suggested_questions: list[str] = []
+    query_description: str = ""
+    is_truncated: bool = False
+    is_clarification: bool = False
+    error_type: str = ""
+
+
+class FeedbackIn(BaseModel):
+    """Thumbs up/down feedback for a Genie response."""
+
+    conversation_id: str
+    message_id: str
+    rating: str = Field(description="THUMBS_UP or THUMBS_DOWN")
+
+
+class ChatStartOut(BaseModel):
+    """Initial response from async chat start."""
+
+    conversation_id: str
+    message_id: str
+
+
+class ChatStatusOut(BaseModel):
+    """Polling response for message status."""
+
+    status: str  # FETCHING_METADATA, ASKING_AI, EXECUTING_QUERY, COMPLETED, FAILED
+    is_complete: bool
+
+
+# --- Tables ---
+
+class ColumnInfo(BaseModel):
+    """Column metadata."""
+
+    name: str
+    type: str
+    comment: str = ""
+
+
+class TableInfoOut(BaseModel):
+    """Table summary for list view."""
+
+    full_name: str
+    table_name: str
+    comment: str = ""
+
+
+class TableDetailOut(BaseModel):
+    """Full table detail with columns."""
+
+    full_name: str
+    table_name: str
+    comment: str = ""
+    columns: list[ColumnInfo] = []
+    row_count: int = 0
+
+
+# --- Export ---
+
+class ExportRequest(BaseModel):
+    """Export request parameters."""
+
+    conversation_id: str
+    format: str = Field(default="csv", description="json or csv")
+
+
+# --- Conversations ---
+
+class ConversationOut(BaseModel):
+    """Conversation summary."""
+
+    conversation_id: str
+    first_question: str = ""
+    message_count: int = 0

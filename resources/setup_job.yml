@@ -1,0 +1,37 @@
+resources:
+  jobs:
+    setup_job:
+      name: "genieapp-setup-${bundle.target}"
+      description: "Generate data, create tables, and set up Genie Space for GenieApp"
+      tasks:
+        - task_key: generate_data
+          notebook_task:
+            notebook_path: ../scripts/01_generate_data.ipynb
+            base_parameters:
+              catalog: ${var.catalog}
+              schema: ${var.schema}
+
+        - task_key: create_tables
+          depends_on:
+            - task_key: generate_data
+          notebook_task:
+            notebook_path: ../scripts/02_create_tables.ipynb
+            base_parameters:
+              catalog: ${var.catalog}
+              schema: ${var.schema}
+
+        - task_key: setup_genie
+          depends_on:
+            - task_key: create_tables
+          notebook_task:
+            notebook_path: ../scripts/03_setup_genie.ipynb
+            base_parameters:
+              catalog: ${var.catalog}
+              schema: ${var.schema}
+              display_name: ${var.display_name}
+              company_name: ${var.company_name}
+              company_description: ${var.company_description}
+              primary_color: ${var.primary_color}
+              secondary_color: ${var.secondary_color}
+              existing_space_id: ${var.existing_space_id}
+              warehouse_id: ${var.warehouse_id}

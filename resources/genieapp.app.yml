@@ -1,0 +1,15 @@
+resources:
+  apps:
+    genieapp:
+      name: genieapp-${bundle.target}
+      description: "Genie-powered data exploration app"
+      source_code_path: ..
+      resources:
+        - name: sql-warehouse
+          description: "SQL warehouse for Genie queries"
+          sql_warehouse:
+            id: ${var.warehouse_id}
+            permission: CAN_USE
+      permissions:
+        - level: CAN_USE
+          group_name: users

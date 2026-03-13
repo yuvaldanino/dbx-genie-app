@@ -46,3 +46,10 @@ state.json
 
 # Project specific files
 .mcp.json
+
+# Databricks CLI profile / auth
+.databrickscfg
+
+# Lock files (machine-specific, already tracked — don't re-add)
+# uv.lock
+# bun.lock

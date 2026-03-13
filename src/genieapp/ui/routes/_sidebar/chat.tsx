@@ -1,11 +1,13 @@
 /**
  * Chat interface — send questions to Genie with async status polling.
+ * Supports multi-space via spaceId search param.
  */
 
 import { useRef, useEffect, useState, useCallback } from "react";
 import { createFileRoute, useSearch } from "@tanstack/react-router";
 import {
   useAppConfig,
+  useSpaceConfig,
   useStartChat,
   useConversationMessages,
   getChatStatus,
@@ -14,26 +16,26 @@ import {
 } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { MessageBubble } from "@/components/apx/MessageBubble";
 import { WelcomeScreen } from "@/components/apx/WelcomeScreen";
 import { Send, Loader2 } from "lucide-react";
 
 interface ChatSearch {
   conversationId?: string;
+  spaceId?: string;
 }
 
 export const Route = createFileRoute("/_sidebar/chat")({
   component: ChatPage,
   validateSearch: (search: Record<string, unknown>): ChatSearch => ({
     conversationId: typeof search.conversationId === "string" ? search.conversationId : undefined,
+    spaceId: typeof search.spaceId === "string" ? search.spaceId : undefined,
   }),
 });
 
 interface Message {
   question: string;
   response?: ChatMessageOut;
-  /** Status text shown during async polling. */
   statusText?: string;
 }
 
@@ -49,8 +51,13 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 function ChatPage() {
-  const { data: config } = useAppConfig();
-  const { conversationId: initialConvId } = useSearch({ from: "/_sidebar/chat" });
+  const { conversationId: initialConvId, spaceId } = useSearch({ from: "/_sidebar/chat" });
+
+  // Use space-specific config if spaceId is present, otherwise default
+  const { data: defaultConfig } = useAppConfig();
+  const { data: spaceConfig } = useSpaceConfig(spaceId);
+  const config = spaceId ? spaceConfig : defaultConfig;
+
   const startChat = useStartChat();
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
@@ -84,15 +91,13 @@ function ChatPage() {
 
   const pollAndFetchResult = useCallback(
     async (convId: string, msgId: string, msgIndex: number) => {
-      // Poll status until complete
       let attempts = 0;
-      const maxAttempts = 300; // 5 minutes at 1s intervals
+      const maxAttempts = 300;
 
       while (attempts < maxAttempts) {
         try {
-          const status = await getChatStatus(convId, msgId);
+          const status = await getChatStatus(convId, msgId, spaceId);
 
-          // Update status text
           const label = STATUS_LABELS[status.status] || status.status;
           setMessages((prev) => {
             const updated = [...prev];
@@ -103,8 +108,7 @@ function ChatPage() {
           });
 
           if (status.is_complete) {
-            // Fetch the full result
-            const result = await getChatResult(convId, msgId);
+            const result = await getChatResult(convId, msgId, spaceId);
             setConversationId(result.conversation_id || undefined);
             setMessages((prev) => {
               const updated = [...prev];
@@ -155,7 +159,7 @@ function ChatPage() {
         return updated;
       });
     },
-    [],
+    [spaceId],
   );
 
   const handleSend = useCallback(
@@ -165,19 +169,16 @@ function ChatPage() {
       setInput("");
       setIsSending(true);
 
-      // Add pending message
       const msgIndex = messages.length;
       setMessages((prev) => [...prev, { question: q, statusText: "Submitting..." }]);
 
       startChat.mutate(
-        { question: q, conversationId },
+        { question: q, conversationId, spaceId },
         {
           onSuccess: async (startResult) => {
             const convId = startResult.conversation_id;
             const msgId = startResult.message_id;
             setConversationId(convId || undefined);
-
-            // Start polling
             await pollAndFetchResult(convId, msgId, msgIndex);
             setIsSending(false);
           },
@@ -211,7 +212,7 @@ function ChatPage() {
         },
       );
     },
-    [input, isSending, messages.length, conversationId, startChat, pollAndFetchResult],
+    [input, isSending, messages.length, conversationId, spaceId, startChat, pollAndFetchResult],
   );
 
   function handleKeyDown(e: React.KeyboardEvent) {
@@ -224,9 +225,9 @@ function ChatPage() {
   const hasMessages = messages.length > 0;
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full overflow-hidden">
       {/* Message area */}
-      <ScrollArea className="flex-1 p-4" ref={scrollRef}>
+      <div className="flex-1 min-h-0 overflow-y-auto p-4" ref={scrollRef}>
         {!hasMessages && config ? (
           <WelcomeScreen
             displayName={config.display_name}
@@ -244,7 +245,6 @@ function ChatPage() {
                     onAskQuestion={handleSend}
                   />
                 ) : (
-                  /* Pending message with status */
                   <div className="space-y-3">
                     <div className="flex justify-end">
                       <div className="bg-primary text-primary-foreground rounded-2xl rounded-tr-sm px-4 py-2.5">
@@ -265,7 +265,7 @@ function ChatPage() {
             ))}
           </div>
         )}
-      </ScrollArea>
+      </div>
 
       {/* Input bar */}
       <div className="border-t bg-background p-4">

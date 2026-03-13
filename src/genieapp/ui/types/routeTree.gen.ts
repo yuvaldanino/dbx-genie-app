@@ -9,10 +9,16 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from "./../routes/__root"
+import { Route as SpacesRouteImport } from "./../routes/spaces"
 import { Route as SidebarRouteRouteImport } from "./../routes/_sidebar/route"
 import { Route as IndexRouteImport } from "./../routes/index"
 import { Route as SidebarChatRouteImport } from "./../routes/_sidebar/chat"
 
+const SpacesRoute = SpacesRouteImport.update({
+  id: "/spaces",
+  path: "/spaces",
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SidebarRouteRoute = SidebarRouteRouteImport.update({
   id: "/_sidebar",
   getParentRoute: () => rootRouteImport,
@@ -30,33 +36,44 @@ const SidebarChatRoute = SidebarChatRouteImport.update({
 
 export interface FileRoutesByFullPath {
   "/": typeof IndexRoute
+  "/spaces": typeof SpacesRoute
   "/chat": typeof SidebarChatRoute
 }
 export interface FileRoutesByTo {
   "/": typeof IndexRoute
+  "/spaces": typeof SpacesRoute
   "/chat": typeof SidebarChatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   "/": typeof IndexRoute
   "/_sidebar": typeof SidebarRouteRouteWithChildren
+  "/spaces": typeof SpacesRoute
   "/_sidebar/chat": typeof SidebarChatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: "/" | "/chat"
+  fullPaths: "/" | "/spaces" | "/chat"
   fileRoutesByTo: FileRoutesByTo
-  to: "/" | "/chat"
-  id: "__root__" | "/" | "/_sidebar" | "/_sidebar/chat"
+  to: "/" | "/spaces" | "/chat"
+  id: "__root__" | "/" | "/_sidebar" | "/spaces" | "/_sidebar/chat"
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SidebarRouteRoute: typeof SidebarRouteRouteWithChildren
+  SpacesRoute: typeof SpacesRoute
 }
 
 declare module "@tanstack/react-router" {
   interface FileRoutesByPath {
+    "/spaces": {
+      id: "/spaces"
+      path: "/spaces"
+      fullPath: "/spaces"
+      preLoaderRoute: typeof SpacesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     "/_sidebar": {
       id: "/_sidebar"
       path: ""
@@ -96,6 +113,7 @@ const SidebarRouteRouteWithChildren = SidebarRouteRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SidebarRouteRoute: SidebarRouteRouteWithChildren,
+  SpacesRoute: SpacesRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -11,6 +11,8 @@ dependencies = [
     "databricks-sdk>=0.74.0",
     "pyyaml>=6.0",
     "python-dotenv>=1.1.0",
+    "faker>=37.0.0",
+    "openai>=1.0.0",
 ]
 
 [dependency-groups]

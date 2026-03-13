@@ -1,0 +1,40 @@
+resources:
+  jobs:
+    create_space_job:
+      name: "genieapp-create-space-${bundle.target}"
+      description: "Create a custom Genie Space: LLM schema design → Faker data → Genie Space"
+      max_concurrent_runs: 10
+      tasks:
+        - task_key: design_and_generate
+          notebook_task:
+            notebook_path: ../scripts/pipeline/01_design_and_generate.ipynb
+            base_parameters:
+              catalog: ${var.catalog}
+              schema: ${var.schema}
+              company_name: ${var.company_name}
+              company_description: ${var.company_description}
+              databricks_host_id: "7474655921234161"
+              llm_model: "opendoor-claude-opus-46"
+
+        - task_key: create_tables
+          depends_on:
+            - task_key: design_and_generate
+          notebook_task:
+            notebook_path: ../scripts/pipeline/02_create_tables.ipynb
+            base_parameters:
+              catalog: ${var.catalog}
+              schema: ${var.schema}
+              company_name: ${var.company_name}
+
+        - task_key: create_space
+          depends_on:
+            - task_key: create_tables
+          notebook_task:
+            notebook_path: ../scripts/pipeline/03_create_space.ipynb
+            base_parameters:
+              catalog: ${var.catalog}
+              schema: ${var.schema}
+              company_name: ${var.company_name}
+              primary_color: ${var.primary_color}
+              secondary_color: ${var.secondary_color}
+              warehouse_id: ${var.warehouse_id}

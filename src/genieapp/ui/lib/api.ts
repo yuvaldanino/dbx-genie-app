@@ -21,11 +21,18 @@ export interface BrandingOut {
   secondary_color: string;
 }
 
+export interface TableInfoBrief {
+  full_name: string;
+  table_name: string;
+  comment: string;
+}
+
 export interface AppConfigOut {
   space_id: string;
   display_name: string;
   sample_questions: string[];
   branding: BrandingOut;
+  tables: TableInfoBrief[];
 }
 
 export interface ChartSuggestion {
@@ -100,6 +107,16 @@ export interface ConversationMessageOut {
   response: ChatMessageOut | null;
 }
 
+export interface SpaceOut {
+  space_id: string;
+  company_name: string;
+  description: string;
+  logo_path: string;
+  primary_color: string;
+  secondary_color: string;
+  created_at: string;
+}
+
 // --- API Functions ---
 
 export async function getAppConfig(): Promise<AppConfigOut> {
@@ -121,10 +138,12 @@ export async function sendChatMessage(
 export async function startChat(
   question: string,
   conversationId?: string,
+  spaceId?: string,
 ): Promise<ChatStartOut> {
   const { data } = await api.post<ChatStartOut>("/chat/start", {
     question,
     conversation_id: conversationId || null,
+    space_id: spaceId || null,
   });
   return data;
 }
@@ -132,9 +151,11 @@ export async function startChat(
 export async function getChatStatus(
   conversationId: string,
   messageId: string,
+  spaceId?: string,
 ): Promise<ChatStatusOut> {
   const { data } = await api.get<ChatStatusOut>(
     `/chat/${conversationId}/${messageId}/status`,
+    { params: spaceId ? { space_id: spaceId } : {} },
   );
   return data;
 }
@@ -142,9 +163,11 @@ export async function getChatStatus(
 export async function getChatResult(
   conversationId: string,
   messageId: string,
+  spaceId?: string,
 ): Promise<ChatMessageOut> {
   const { data } = await api.get<ChatMessageOut>(
     `/chat/${conversationId}/${messageId}/result`,
+    { params: spaceId ? { space_id: spaceId } : {} },
   );
   return data;
 }
@@ -165,8 +188,10 @@ export async function getTableDetail(
   return data;
 }
 
-export async function listConversations(): Promise<ConversationOut[]> {
-  const { data } = await api.get<ConversationOut[]>("/conversations");
+export async function listConversations(spaceId?: string): Promise<ConversationOut[]> {
+  const { data } = await api.get<ConversationOut[]>("/conversations", {
+    params: spaceId ? { space_id: spaceId } : {},
+  });
   return data;
 }
 
@@ -228,11 +253,12 @@ export function useTableDetail(
 }
 
 export function useConversations(
+  spaceId?: string,
   options?: Partial<UseQueryOptions<ConversationOut[]>>,
 ) {
   return useQuery({
-    queryKey: ["conversations"],
-    queryFn: listConversations,
+    queryKey: ["conversations", spaceId],
+    queryFn: () => listConversations(spaceId),
     staleTime: 10_000,
     ...options,
   });
@@ -265,10 +291,12 @@ export function useStartChat() {
     mutationFn: ({
       question,
       conversationId,
+      spaceId,
     }: {
       question: string;
       conversationId?: string;
-    }) => startChat(question, conversationId),
+      spaceId?: string;
+    }) => startChat(question, conversationId, spaceId),
   });
 }
 
@@ -300,5 +328,68 @@ export function useChatResult(
 export function useSendFeedback() {
   return useMutation({
     mutationFn: (feedback: FeedbackIn) => sendFeedback(feedback),
+  });
+}
+
+// --- Spaces ---
+
+export async function listSpaces(): Promise<SpaceOut[]> {
+  const { data } = await api.get<SpaceOut[]>("/spaces");
+  return data;
+}
+
+export function useSpaces(
+  options?: Partial<UseQueryOptions<SpaceOut[]>>,
+) {
+  return useQuery({
+    queryKey: ["spaces"],
+    queryFn: listSpaces,
+    staleTime: 30_000,
+    ...options,
+  });
+}
+
+// --- Space creation & jobs ---
+
+export interface CreateSpaceOut {
+  run_id: string;
+}
+
+export interface JobStatusOut {
+  run_id: string;
+  status: "RUNNING" | "COMPLETED" | "FAILED";
+  space_id: string | null;
+  error: string | null;
+}
+
+export async function createSpace(
+  companyName: string,
+  description: string,
+): Promise<CreateSpaceOut> {
+  const { data } = await api.post<CreateSpaceOut>("/spaces", {
+    company_name: companyName,
+    description,
+  });
+  return data;
+}
+
+export async function getJobStatus(runId: string): Promise<JobStatusOut> {
+  const { data } = await api.get<JobStatusOut>(`/jobs/${runId}`);
+  return data;
+}
+
+export async function getSpaceConfig(
+  spaceId: string,
+): Promise<AppConfigOut> {
+  const { data } = await api.get<AppConfigOut>(`/spaces/${spaceId}/config`);
+  return data;
+}
+
+export function useSpaceConfig(spaceId: string | undefined) {
+  return useQuery({
+    queryKey: ["spaceConfig", spaceId],
+    queryFn: () => getSpaceConfig(spaceId!),
+    enabled: !!spaceId,
+    staleTime: Infinity,
   });
 }

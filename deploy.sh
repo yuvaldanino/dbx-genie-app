@@ -2,8 +2,8 @@
 set -euo pipefail
 
 TARGET="${1:-dev}"
-CATALOG="${2:-startups_catalog}"
-SCHEMA="${3:-dw_genie}"
+CATALOG="${2:-yd_launchpad_final_classic_catalog}"
+SCHEMA="${3:-genie_app}"
 VOLUME="raw_data"
 APP_NAME="genieapp-${TARGET}"
 

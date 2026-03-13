@@ -10,6 +10,6 @@ env:
   - name: PYTHONPATH
     value: src
   - name: STATE_FILE_PATH
-    value: /Volumes/startups_catalog/dw_genie/raw_data/state.json
+    value: /Volumes/yd_launchpad_final_classic_catalog/genie_app/raw_data/state.json
   - name: DATABRICKS_WAREHOUSE_ID
     valueFrom: sql-warehouse

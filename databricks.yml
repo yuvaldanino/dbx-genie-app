@@ -6,9 +6,9 @@ include:
 
 variables:
   catalog:
-    default: startups_catalog
+    default: yd_launchpad_final_classic_catalog
   schema:
-    default: dw_genie
+    default: genie_app
   warehouse_id:
     lookup:
       warehouse: "Serverless Starter Warehouse"
@@ -23,7 +23,7 @@ variables:
   secondary_color:
     default: "#ea4335"
   existing_space_id:
-    default: "01f1170f66e21a439537fe87ffd13c55"
+    default: ""
 
 targets:
   dev:

@@ -31,6 +31,14 @@ class BrandingOut(BaseModel):
     secondary_color: str = "#ea4335"
 
 
+class TableInfoBrief(BaseModel):
+    """Brief table info for config responses."""
+
+    full_name: str
+    table_name: str
+    comment: str = ""
+
+
 class AppConfigOut(BaseModel):
     """Full app config for frontend initialization."""
 
@@ -38,6 +46,7 @@ class AppConfigOut(BaseModel):
     display_name: str
     sample_questions: list[str] = []
     branding: BrandingOut
+    tables: list[TableInfoBrief] = []
 
 
 # --- Chat ---
@@ -47,6 +56,7 @@ class ChatMessageIn(BaseModel):
 
     question: str
     conversation_id: str | None = None
+    space_id: str | None = None
 
 
 class ChartSuggestion(BaseModel):
@@ -152,3 +162,39 @@ class ConversationMessageOut(BaseModel):
 
     question: str
     response: ChatMessageOut | None = None
+
+
+# --- Spaces ---
+
+class SpaceOut(BaseModel):
+    """A created Genie Space session."""
+
+    space_id: str
+    company_name: str
+    description: str = ""
+    logo_path: str = ""
+    primary_color: str = "#1a73e8"
+    secondary_color: str = "#ea4335"
+    created_at: str = ""
+
+
+class CreateSpaceIn(BaseModel):
+    """Input for creating a new Genie Space."""
+
+    company_name: str
+    description: str
+
+
+class CreateSpaceOut(BaseModel):
+    """Response after triggering space creation."""
+
+    run_id: str
+
+
+class JobStatusOut(BaseModel):
+    """Status of a pipeline job run."""
+
+    run_id: str
+    status: str  # RUNNING, COMPLETED, FAILED, CANCELLED
+    space_id: str | None = None
+    error: str | None = None

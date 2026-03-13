@@ -1,10 +1,11 @@
 /**
  * Sidebar layout — resizable sidebar with nav, inline table schema, conversation history, and theme toggle.
+ * Reads spaceId from child route search params to show space-specific branding and tables.
  */
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import { createFileRoute, Outlet, Link } from "@tanstack/react-router";
-import { useAppConfig, useTables, useConversations } from "@/lib/api";
+import { createFileRoute, Outlet, Link, useMatches } from "@tanstack/react-router";
+import { useAppConfig, useSpaceConfig, useConversations } from "@/lib/api";
 import { useTheme } from "@/components/apx/theme-provider";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -37,9 +38,18 @@ const MAX_WIDTH = 480;
 const DEFAULT_WIDTH = 260;
 
 function SidebarLayout() {
-  const { data: config } = useAppConfig();
-  const { data: tables } = useTables();
-  const { data: conversations } = useConversations();
+  // Extract spaceId from child route search params
+  const matches = useMatches();
+  const chatMatch = matches.find((m) => m.routeId === "/_sidebar/chat");
+  const spaceId = (chatMatch?.search as { spaceId?: string })?.spaceId;
+
+  // Use space-specific config when spaceId is present
+  const { data: defaultConfig } = useAppConfig();
+  const { data: spaceConfig } = useSpaceConfig(spaceId);
+  const config = spaceId && spaceConfig ? spaceConfig : defaultConfig;
+
+  const tables = config?.tables;
+  const { data: conversations } = useConversations(spaceId);
   const [expandedTable, setExpandedTable] = useState<string | null>(null);
   const [tablesOpen, setTablesOpen] = useState(true);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -112,7 +122,7 @@ function SidebarLayout() {
               Home
             </Button>
           </Link>
-          <Link to="/chat">
+          <Link to="/chat" search={spaceId ? { spaceId } : {}}>
             <Button variant="ghost" className="w-full justify-start gap-2">
               <MessageSquare className="h-4 w-4 text-primary" />
               Chat
@@ -190,7 +200,7 @@ function SidebarLayout() {
                     <Link
                       key={conv.conversation_id}
                       to="/chat"
-                      search={{ conversationId: conv.conversation_id }}
+                      search={{ conversationId: conv.conversation_id, ...(spaceId ? { spaceId } : {}) }}
                     >
                       <Button
                         variant="ghost"

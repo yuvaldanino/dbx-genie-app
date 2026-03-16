@@ -231,6 +231,8 @@ function ChatPage() {
         {!hasMessages && config ? (
           <WelcomeScreen
             displayName={config.display_name}
+            companyName={config.branding?.company_name}
+            logoPath={config.branding?.logo_path}
             sampleQuestions={config.sample_questions}
             onSelectQuestion={handleSend}
           />

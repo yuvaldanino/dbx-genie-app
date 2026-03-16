@@ -27,7 +27,7 @@ function SpacesPage() {
       className="min-h-screen w-screen relative overflow-auto"
       style={{
         background:
-          "linear-gradient(135deg, oklch(0.55 0.19 255 / 0.08) 0%, oklch(0.60 0.16 165 / 0.06) 50%, oklch(0.55 0.19 255 / 0.03) 100%)",
+          "linear-gradient(135deg, hsl(from var(--primary) h s l / 0.08) 0%, hsl(from var(--accent) h s l / 0.06) 50%, hsl(from var(--primary) h s l / 0.03) 100%)",
       }}
     >
       {/* Background decorations */}

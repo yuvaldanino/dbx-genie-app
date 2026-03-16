@@ -10,6 +10,7 @@ from databricks.sdk import WorkspaceClient
 
 from .data_generator import generate_all_tables
 from .schema_designer import design_schema
+from .theme_generator import generate_theme
 from .space_creator import (
     create_genie_space,
     create_schema,
@@ -88,6 +89,24 @@ def run_pipeline(
     logger.info("Company: %s, Schema: %s.%s", company_name, catalog, schema_name)
     logger.info("Tables: %s", [t["name"] for t in schema_def["tables"]])
 
+    # Step 1.5: Generate brand theme with LLM
+    logger.info("=== Step 1.5: Generating brand theme ===")
+    try:
+        theme = generate_theme(
+            company_name,
+            company_description,
+            databricks_host=databricks_host,
+            databricks_token=databricks_token,
+        )
+        primary_color = theme["primary"]
+        secondary_color = theme["secondary"]
+        accent_color = theme["accent"]
+        chart_colors = theme["chart_colors"]
+    except Exception as e:
+        logger.warning("Theme generation failed, using defaults: %s", e)
+        accent_color = primary_color
+        chart_colors = [primary_color, secondary_color, primary_color, secondary_color, primary_color]
+
     # Step 2: Generate data with Faker
     logger.info("=== Step 2: Generating data ===")
     table_data = generate_all_tables(schema_def)
@@ -123,6 +142,8 @@ def run_pipeline(
         logo_path=logo_path,
         primary_color=primary_color,
         secondary_color=secondary_color,
+        accent_color=accent_color,
+        chart_colors=chart_colors,
     )
 
     # Step 6: Write state.json to volume
@@ -139,6 +160,8 @@ def run_pipeline(
         logo_path=logo_path,
         primary_color=primary_color,
         secondary_color=secondary_color,
+        accent_color=accent_color,
+        chart_colors=chart_colors,
     )
 
     result = {

@@ -27,6 +27,8 @@ class BrandingConfig(BaseModel):
     logo_path: str = ""
     primary_color: str = "#1a73e8"
     secondary_color: str = "#ea4335"
+    accent_color: str = ""
+    chart_colors: list[str] = []
 
 
 class AppState(BaseModel):

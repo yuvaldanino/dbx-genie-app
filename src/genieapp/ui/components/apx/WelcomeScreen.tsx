@@ -7,23 +7,36 @@ import { MessageSquare, Sparkles } from "lucide-react";
 
 interface WelcomeScreenProps {
   displayName: string;
+  companyName?: string;
+  logoPath?: string;
   sampleQuestions: string[];
   onSelectQuestion: (question: string) => void;
 }
 
 export function WelcomeScreen({
   displayName,
+  companyName,
+  logoPath,
   sampleQuestions,
   onSelectQuestion,
 }: WelcomeScreenProps) {
   return (
     <div className="flex flex-col items-center justify-center h-full px-4">
+      {logoPath && (
+        <img
+          src={logoPath}
+          alt={companyName || displayName}
+          className="h-16 w-auto mb-4"
+        />
+      )}
       <div className="flex items-center gap-2 mb-2">
-        <Sparkles className="h-8 w-8 text-primary" />
+        {!logoPath && <Sparkles className="h-8 w-8 text-primary" />}
         <h2 className="text-2xl font-bold">{displayName}</h2>
       </div>
       <p className="text-muted-foreground mb-8 text-center max-w-md">
-        Ask questions about your data using natural language. Try one of these to get started:
+        {companyName
+          ? `Ask anything about ${companyName}'s data`
+          : "Ask questions about your data using natural language. Try one of these to get started:"}
       </p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-w-2xl w-full">
         {sampleQuestions.map((q) => (

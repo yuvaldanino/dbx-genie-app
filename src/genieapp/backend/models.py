@@ -29,6 +29,8 @@ class BrandingOut(BaseModel):
     logo_path: str = ""
     primary_color: str = "#1a73e8"
     secondary_color: str = "#ea4335"
+    accent_color: str = ""
+    chart_colors: list[str] = []
 
 
 class TableInfoBrief(BaseModel):
@@ -175,6 +177,8 @@ class SpaceOut(BaseModel):
     logo_path: str = ""
     primary_color: str = "#1a73e8"
     secondary_color: str = "#ea4335"
+    accent_color: str = ""
+    chart_colors: list[str] = []
     created_at: str = ""
 
 
@@ -183,6 +187,7 @@ class CreateSpaceIn(BaseModel):
 
     company_name: str
     description: str
+    logo_url: str = ""
 
 
 class CreateSpaceOut(BaseModel):

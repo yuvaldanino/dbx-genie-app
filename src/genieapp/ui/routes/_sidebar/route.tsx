@@ -17,6 +17,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { TableDetailPanel } from "@/components/apx/TableDetailPanel";
+import { BrandThemeInjector } from "@/components/apx/BrandThemeInjector";
 import {
   Home,
   MessageSquare,
@@ -93,22 +94,31 @@ function SidebarLayout() {
 
   return (
     <div className="flex h-screen">
+      <BrandThemeInjector branding={branding ?? null} />
       {/* Sidebar */}
       <aside
         className="border-r bg-sidebar flex flex-col shrink-0 relative"
         style={{ width: sidebarWidth }}
       >
+        {/* Brand accent bar */}
+        <div className="h-1 bg-primary w-full shrink-0" />
+
         {/* Logo / header */}
-        <div className="p-4 flex items-center gap-3">
-          {branding?.logo_path && (
-            <img
-              src={branding.logo_path}
-              alt={branding.company_name}
-              className="h-8 w-auto"
-            />
-          )}
-          <span className="font-semibold text-sm truncate">
-            {branding?.company_name || "GenieApp"}
+        <div className="p-4 flex flex-col gap-1">
+          <div className="flex items-center gap-3">
+            {branding?.logo_path && (
+              <img
+                src={branding.logo_path}
+                alt={branding.company_name}
+                className="h-10 w-auto"
+              />
+            )}
+            <span className="font-semibold text-sm truncate">
+              {branding?.company_name || "GenieApp"}
+            </span>
+          </div>
+          <span className="text-[10px] text-muted-foreground">
+            Powered by Databricks Genie
           </span>
         </div>
 

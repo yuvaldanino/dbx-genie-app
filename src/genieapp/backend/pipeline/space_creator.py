@@ -250,6 +250,8 @@ def ensure_sessions_table(
             logo_path STRING COMMENT 'Path to company logo',
             primary_color STRING DEFAULT '#1a73e8' COMMENT 'Brand primary color',
             secondary_color STRING DEFAULT '#ea4335' COMMENT 'Brand secondary color',
+            accent_color STRING DEFAULT '' COMMENT 'Brand accent color',
+            chart_colors_json STRING COMMENT 'JSON array of chart hex colors',
             tables_json STRING COMMENT 'JSON array of table metadata',
             sample_questions_json STRING COMMENT 'JSON array of sample questions',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP() COMMENT 'When this session was created'
@@ -273,6 +275,8 @@ def save_session(
     logo_path: str = "",
     primary_color: str = "#1a73e8",
     secondary_color: str = "#ea4335",
+    accent_color: str = "",
+    chart_colors: list[str] | None = None,
 ) -> str:
     """Save a session record to the sessions metadata table.
 
@@ -290,6 +294,8 @@ def save_session(
         logo_path: Path to company logo.
         primary_color: Brand primary color hex.
         secondary_color: Brand secondary color hex.
+        accent_color: Brand accent color hex.
+        chart_colors: List of chart hex colors.
 
     Returns:
         The session_id.
@@ -297,6 +303,7 @@ def save_session(
     session_id = uuid.uuid4().hex
     tables_json = json.dumps(tables_info).replace("'", "''")
     questions_json = json.dumps(sample_questions).replace("'", "''")
+    chart_colors_json = json.dumps(chart_colors or []).replace("'", "''")
     desc_escaped = description.replace("'", "''")
     name_escaped = company_name.replace("'", "''")
 
@@ -306,10 +313,12 @@ def save_session(
         warehouse_id,
         f"""INSERT INTO {full_name}
             (session_id, space_id, company_name, description, schema_name,
-             logo_path, primary_color, secondary_color, tables_json, sample_questions_json)
+             logo_path, primary_color, secondary_color, accent_color, chart_colors_json,
+             tables_json, sample_questions_json)
         VALUES
             ('{session_id}', '{space_id}', '{name_escaped}', '{desc_escaped}', '{schema_name}',
-             '{logo_path}', '{primary_color}', '{secondary_color}', '{tables_json}', '{questions_json}')""",
+             '{logo_path}', '{primary_color}', '{secondary_color}', '{accent_color}', '{chart_colors_json}',
+             '{tables_json}', '{questions_json}')""",
     )
     logger.info("Session saved: %s (space: %s)", session_id, space_id)
     return session_id
@@ -330,6 +339,8 @@ def write_state_json(
     logo_path: str = "",
     primary_color: str = "#1a73e8",
     secondary_color: str = "#ea4335",
+    accent_color: str = "",
+    chart_colors: list[str] | None = None,
 ) -> None:
     """Write state.json to UC Volume for the app to read.
 
@@ -347,6 +358,8 @@ def write_state_json(
         logo_path: Logo path.
         primary_color: Primary brand color.
         secondary_color: Secondary brand color.
+        accent_color: Accent brand color.
+        chart_colors: List of chart hex colors.
     """
     state = {
         "space_id": space_id,
@@ -362,6 +375,8 @@ def write_state_json(
             "logo_path": logo_path,
             "primary_color": primary_color,
             "secondary_color": secondary_color,
+            "accent_color": accent_color,
+            "chart_colors": chart_colors or [],
         },
     }
 

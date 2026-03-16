@@ -139,6 +139,8 @@ async def get_app_config() -> AppConfigOut:
             logo_path=state.branding.logo_path,
             primary_color=state.branding.primary_color,
             secondary_color=state.branding.secondary_color,
+            accent_color=state.branding.accent_color,
+            chart_colors=state.branding.chart_colors,
         ),
         tables=[
             TableInfoBrief(full_name=t.full_name, table_name=t.table_name, comment=t.comment)
@@ -415,10 +417,7 @@ async def export_conversation(req: ExportRequest) -> StreamingResponse:
 @router.get("/spaces/debug", operation_id="debugSpaces")
 def debug_spaces(ws: Dependencies.Client) -> dict:
     """Debug endpoint — shows raw SQL result for sessions query."""
-    sql = (
-        f"SELECT space_id, company_name, description, logo_path, primary_color, "
-        f"secondary_color, created_at FROM {_SESSIONS_TABLE} ORDER BY created_at DESC"
-    )
+    sql = f"SELECT * FROM {_SESSIONS_TABLE} ORDER BY created_at DESC"
     try:
         result = _run_sql(ws, sql)
         rows = _parse_sql_rows(result)
@@ -439,8 +438,7 @@ def list_spaces(ws: Dependencies.Client) -> list[SpaceOut]:
     try:
         result = _run_sql(
             ws,
-            f"SELECT space_id, company_name, description, logo_path, primary_color, "
-            f"secondary_color, created_at FROM {_SESSIONS_TABLE} ORDER BY created_at DESC",
+            f"SELECT * FROM {_SESSIONS_TABLE} ORDER BY created_at DESC",
         )
         rows = _parse_sql_rows(result)
         logger.info("list_spaces: SQL returned %d rows, keys=%s", len(rows), list(result.keys()))
@@ -450,13 +448,15 @@ def list_spaces(ws: Dependencies.Client) -> list[SpaceOut]:
 
         return [
             SpaceOut(
-                space_id=r.get("space_id", ""),
-                company_name=r.get("company_name", ""),
-                description=r.get("description", ""),
-                logo_path=r.get("logo_path", ""),
-                primary_color=r.get("primary_color", "#1a73e8"),
-                secondary_color=r.get("secondary_color", "#ea4335"),
-                created_at=str(r.get("created_at", "")),
+                space_id=r.get("space_id") or "",
+                company_name=r.get("company_name") or "",
+                description=r.get("description") or "",
+                logo_path=r.get("logo_path") or "",
+                primary_color=r.get("primary_color") or "#1a73e8",
+                secondary_color=r.get("secondary_color") or "#ea4335",
+                accent_color=r.get("accent_color") or "",
+                chart_colors=json.loads(r["chart_colors_json"]) if r.get("chart_colors_json") else [],
+                created_at=str(r.get("created_at") or ""),
             )
             for r in rows
         ]
@@ -477,6 +477,8 @@ def _fallback_spaces() -> list[SpaceOut]:
                 logo_path=state.branding.logo_path,
                 primary_color=state.branding.primary_color,
                 secondary_color=state.branding.secondary_color,
+                accent_color=state.branding.accent_color,
+                chart_colors=state.branding.chart_colors,
             )
         ]
     except Exception:
@@ -504,16 +506,25 @@ def get_space_config(space_id: str, ws: Dependencies.Client) -> AppConfigOut:
     tables_info = json.loads(row.get("tables_json", "[]"))
     sample_questions = json.loads(row.get("sample_questions_json", "[]"))
 
+    chart_colors = []
+    if row.get("chart_colors_json"):
+        try:
+            chart_colors = json.loads(row["chart_colors_json"])
+        except (json.JSONDecodeError, TypeError):
+            pass
+
     return AppConfigOut(
         space_id=space_id,
         display_name=f"{row.get('company_name', '')} Analytics",
         sample_questions=sample_questions,
         branding=BrandingOut(
-            company_name=row.get("company_name", ""),
-            description=row.get("description", ""),
-            logo_path=row.get("logo_path", ""),
-            primary_color=row.get("primary_color", "#1a73e8"),
-            secondary_color=row.get("secondary_color", "#ea4335"),
+            company_name=row.get("company_name") or "",
+            description=row.get("description") or "",
+            logo_path=row.get("logo_path") or "",
+            primary_color=row.get("primary_color") or "#1a73e8",
+            secondary_color=row.get("secondary_color") or "#ea4335",
+            accent_color=row.get("accent_color") or "",
+            chart_colors=chart_colors,
         ),
         tables=[
             TableInfoBrief(
@@ -541,8 +552,7 @@ def create_space(
             "schema": _SCHEMA,
             "company_name": req.company_name,
             "company_description": req.description,
-            "primary_color": "#1a73e8",
-            "secondary_color": "#ea4335",
+            "logo_url": req.logo_url,
             "warehouse_id": _WAREHOUSE_ID,
             "databricks_host_id": "7474655921234161",
             "llm_model": "opendoor-claude-opus-46",

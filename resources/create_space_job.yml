@@ -15,6 +15,7 @@ resources:
               company_description: ${var.company_description}
               databricks_host_id: "7474655921234161"
               llm_model: "opendoor-claude-opus-46"
+              logo_url: ""
 
         - task_key: create_tables
           depends_on:
@@ -35,6 +36,4 @@ resources:
               catalog: ${var.catalog}
               schema: ${var.schema}
               company_name: ${var.company_name}
-              primary_color: ${var.primary_color}
-              secondary_color: ${var.secondary_color}
               warehouse_id: ${var.warehouse_id}

@@ -32,6 +32,7 @@ function LandingPage() {
 
   const [companyName, setCompanyName] = useState("");
   const [description, setDescription] = useState("");
+  const [logoUrl, setLogoUrl] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [progress, setProgress] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -44,7 +45,7 @@ function LandingPage() {
 
     try {
       // Trigger the DABs job
-      const { run_id } = await createSpace(companyName.trim(), description.trim());
+      const { run_id } = await createSpace(companyName.trim(), description.trim(), logoUrl.trim() || undefined);
 
       // Poll for completion
       let attempts = 0;
@@ -81,7 +82,7 @@ function LandingPage() {
       setError(e instanceof Error ? e.message : "Failed to start pipeline");
       setIsCreating(false);
     }
-  }, [companyName, description, isCreating, navigate]);
+  }, [companyName, description, logoUrl, isCreating, navigate]);
 
   const canSubmit = companyName.trim().length > 0 && description.trim().length > 0 && !isCreating;
 
@@ -90,7 +91,7 @@ function LandingPage() {
       className="h-screen w-screen flex flex-col items-center justify-center relative overflow-hidden"
       style={{
         background:
-          "linear-gradient(135deg, oklch(0.55 0.19 255 / 0.08) 0%, oklch(0.60 0.16 165 / 0.06) 50%, oklch(0.55 0.19 255 / 0.03) 100%)",
+          "linear-gradient(135deg, hsl(from var(--primary) h s l / 0.08) 0%, hsl(from var(--accent) h s l / 0.06) 50%, hsl(from var(--primary) h s l / 0.03) 100%)",
       }}
     >
       {/* Background decorations */}
@@ -118,6 +119,19 @@ function LandingPage() {
               value={companyName}
               onChange={(e) => setCompanyName(e.target.value)}
               placeholder="e.g. NovaTech Logistics"
+              disabled={isCreating}
+            />
+          </div>
+
+          {/* Logo URL */}
+          <div>
+            <label className="text-sm font-medium mb-2 block text-left">
+              Logo URL <span className="text-muted-foreground font-normal">(optional)</span>
+            </label>
+            <Input
+              value={logoUrl}
+              onChange={(e) => setLogoUrl(e.target.value)}
+              placeholder="https://logo.clearbit.com/company.com"
               disabled={isCreating}
             />
           </div>

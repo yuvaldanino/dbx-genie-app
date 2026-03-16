@@ -19,6 +19,8 @@ export interface BrandingOut {
   logo_path: string;
   primary_color: string;
   secondary_color: string;
+  accent_color: string;
+  chart_colors: string[];
 }
 
 export interface TableInfoBrief {
@@ -114,6 +116,8 @@ export interface SpaceOut {
   logo_path: string;
   primary_color: string;
   secondary_color: string;
+  accent_color: string;
+  chart_colors: string[];
   created_at: string;
 }
 
@@ -365,10 +369,12 @@ export interface JobStatusOut {
 export async function createSpace(
   companyName: string,
   description: string,
+  logoUrl?: string,
 ): Promise<CreateSpaceOut> {
   const { data } = await api.post<CreateSpaceOut>("/spaces", {
     company_name: companyName,
     description,
+    logo_url: logoUrl || "",
   });
   return data;
 }

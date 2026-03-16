@@ -26,11 +26,11 @@ class BrandingOut(BaseModel):
 
     company_name: str
     description: str
-    logo_path: str = ""
-    primary_color: str = "#1a73e8"
-    secondary_color: str = "#ea4335"
-    accent_color: str = ""
-    chart_colors: list[str] = []
+    logo_path: str | None = ""
+    primary_color: str | None = "#1a73e8"
+    secondary_color: str | None = "#ea4335"
+    accent_color: str | None = ""
+    chart_colors: list[str] | None = []
 
 
 class TableInfoBrief(BaseModel):
@@ -173,13 +173,13 @@ class SpaceOut(BaseModel):
 
     space_id: str
     company_name: str
-    description: str = ""
-    logo_path: str = ""
-    primary_color: str = "#1a73e8"
-    secondary_color: str = "#ea4335"
-    accent_color: str = ""
-    chart_colors: list[str] = []
-    created_at: str = ""
+    description: str | None = ""
+    logo_path: str | None = ""
+    primary_color: str | None = "#1a73e8"
+    secondary_color: str | None = "#ea4335"
+    accent_color: str | None = ""
+    chart_colors: list[str] | None = []
+    created_at: str | None = ""
 
 
 class CreateSpaceIn(BaseModel):

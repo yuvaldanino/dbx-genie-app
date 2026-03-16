@@ -24,11 +24,11 @@ class BrandingConfig(BaseModel):
 
     company_name: str
     description: str
-    logo_path: str = ""
-    primary_color: str = "#1a73e8"
-    secondary_color: str = "#ea4335"
-    accent_color: str = ""
-    chart_colors: list[str] = []
+    logo_path: str | None = ""
+    primary_color: str | None = "#1a73e8"
+    secondary_color: str | None = "#ea4335"
+    accent_color: str | None = ""
+    chart_colors: list[str] | None = []
 
 
 class AppState(BaseModel):

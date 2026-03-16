@@ -545,21 +545,24 @@ def create_space(
     """Trigger the DABs pipeline to create a new Genie Space."""
     # Trigger the pipeline job (ID from DABs deployment)
     job_id = 381399907081683
-    run = ws.jobs.run_now(
-        job_id=job_id,
-        notebook_params={
-            "catalog": _CATALOG,
-            "schema": _SCHEMA,
-            "company_name": req.company_name,
-            "company_description": req.description,
-            "logo_url": req.logo_url,
-            "warehouse_id": _WAREHOUSE_ID,
-            "databricks_host_id": "7474655921234161",
-            "llm_model": "opendoor-claude-opus-46",
-        },
-    )
-
-    return CreateSpaceOut(run_id=str(run.run_id))
+    try:
+        run = ws.jobs.run_now(
+            job_id=job_id,
+            notebook_params={
+                "catalog": _CATALOG,
+                "schema": _SCHEMA,
+                "company_name": req.company_name,
+                "company_description": req.description,
+                "logo_url": req.logo_url or "",
+                "warehouse_id": _WAREHOUSE_ID,
+                "databricks_host_id": "7474655921234161",
+                "llm_model": "opendoor-claude-opus-46",
+            },
+        )
+        return CreateSpaceOut(run_id=str(run.run_id))
+    except Exception as e:
+        logger.error("create_space failed: %s: %s", type(e).__name__, e)
+        raise
 
 
 @router.get(

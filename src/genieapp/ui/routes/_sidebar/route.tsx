@@ -28,6 +28,7 @@ import {
   Sun,
   Moon,
   History,
+  Layout,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_sidebar")({
@@ -136,6 +137,12 @@ function SidebarLayout() {
             <Button variant="ghost" className="w-full justify-start gap-2">
               <MessageSquare className="h-4 w-4 text-primary" />
               Chat
+            </Button>
+          </Link>
+          <Link to="/templates">
+            <Button variant="ghost" className="w-full justify-start gap-2">
+              <Layout className="h-4 w-4 text-primary" />
+              Templates
             </Button>
           </Link>
         </nav>

@@ -203,3 +203,22 @@ class JobStatusOut(BaseModel):
     status: str  # RUNNING, COMPLETED, FAILED, CANCELLED
     space_id: str | None = None
     error: str | None = None
+
+
+# --- Users ---
+
+class UserOut(BaseModel):
+    """User profile response."""
+
+    user_id: str
+    email: str = ""
+    username: str = ""
+    default_template: str = "simple"
+    preferences: dict = {}
+
+
+class UserPreferencesIn(BaseModel):
+    """Input for updating user preferences."""
+
+    default_template: str | None = None
+    preferences: dict | None = None

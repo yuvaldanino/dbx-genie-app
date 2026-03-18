@@ -9,40 +9,37 @@ import json
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 
+from ..core import Dependencies
+from ..db import get_conversation_messages
 from ..models import ExportRequest
-from .chat import _conversations
 
 router = APIRouter()
 
 
 @router.post("/export", operation_id="exportConversation")
-async def export_conversation(req: ExportRequest) -> StreamingResponse:
+def export_conversation(
+    req: ExportRequest,
+    ws: Dependencies.Client,
+) -> StreamingResponse:
     """Export conversation data as JSON or CSV."""
-    messages = _conversations.get(req.conversation_id, [])
+    rows = get_conversation_messages(ws, req.conversation_id)
 
     if req.format == "json":
-        content = json.dumps(messages, indent=2, default=str)
+        content = json.dumps(rows, indent=2, default=str)
         return StreamingResponse(
             io.BytesIO(content.encode()),
             media_type="application/json",
             headers={"Content-Disposition": f"attachment; filename=conversation_{req.conversation_id}.json"},
         )
 
-    # CSV format — flatten all result data
+    # CSV format — export message metadata
     output = io.StringIO()
-    writer = None
-    for msg in messages:
-        result = msg.get("result", {})
-        if not result:
-            continue
-        columns = result.get("columns", [])
-        data = result.get("data", [])
-        if columns and data:
-            if writer is None:
-                writer = csv.DictWriter(output, fieldnames=columns)
-                writer.writeheader()
-            for row in data:
-                writer.writerow(row)
+    if rows:
+        fieldnames = ["question", "status", "description", "sql_text", "created_at"]
+        writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction="ignore")
+        writer.writeheader()
+        for row in rows:
+            writer.writerow(row)
 
     return StreamingResponse(
         io.BytesIO(output.getvalue().encode()),

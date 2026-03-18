@@ -118,7 +118,17 @@ export interface SpaceOut {
   secondary_color: string;
   accent_color: string;
   chart_colors: string[];
+  template_id: string;
+  space_type: string;
   created_at: string;
+}
+
+export interface UserOut {
+  user_id: string;
+  email: string;
+  username: string;
+  default_template: string;
+  preferences: Record<string, unknown>;
 }
 
 // --- API Functions ---
@@ -398,4 +408,87 @@ export function useSpaceConfig(spaceId: string | undefined) {
     enabled: !!spaceId,
     staleTime: Infinity,
   });
+}
+
+// --- Users ---
+
+export async function getCurrentUser(): Promise<UserOut> {
+  const { data } = await api.get<UserOut>("/users/me");
+  return data;
+}
+
+export async function updateUserPreferences(prefs: {
+  default_template?: string;
+  preferences?: Record<string, unknown>;
+}): Promise<UserOut> {
+  const { data } = await api.patch<UserOut>("/users/me/preferences", prefs);
+  return data;
+}
+
+export function useCurrentUser() {
+  return useQuery({
+    queryKey: ["currentUser"],
+    queryFn: getCurrentUser,
+    staleTime: 300_000, // 5 min
+  });
+}
+
+export function useUpdateUserPreferences() {
+  return useMutation({
+    mutationFn: updateUserPreferences,
+  });
+}
+
+// --- Space template ---
+
+export async function updateSpaceTemplate(
+  spaceId: string,
+  templateId: string,
+): Promise<void> {
+  await api.patch(`/spaces/${spaceId}/template`, { template_id: templateId });
+}
+
+export function useUpdateSpaceTemplate() {
+  return useMutation({
+    mutationFn: ({ spaceId, templateId }: { spaceId: string; templateId: string }) =>
+      updateSpaceTemplate(spaceId, templateId),
+  });
+}
+
+// --- BYOG ---
+
+export async function createByogSpace(params: {
+  space_id: string;
+  company_name: string;
+  primary_color?: string;
+  secondary_color?: string;
+  template_id?: string;
+}): Promise<SpaceOut> {
+  const { data } = await api.post<SpaceOut>("/spaces/byog", params);
+  return data;
+}
+
+export function useCreateByogSpace() {
+  return useMutation({
+    mutationFn: createByogSpace,
+  });
+}
+
+// --- Image upload ---
+
+export async function uploadImage(
+  file: File,
+  spaceId?: string,
+): Promise<{ image_id: string; volume_path: string }> {
+  const formData = new FormData();
+  formData.append("file", file);
+  if (spaceId) formData.append("space_id", spaceId);
+  const { data } = await api.post("/images/upload", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return data;
+}
+
+export function getImageUrl(imageId: string): string {
+  return `/api/images/${imageId}`;
 }

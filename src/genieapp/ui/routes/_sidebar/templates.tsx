@@ -1,19 +1,37 @@
 /**
- * Templates page — premium tab-based switcher for 3 Genie Space embed style demos.
+ * Templates page — browse and select UI templates for the current space.
+ * Calls PATCH /api/spaces/{spaceId}/template to persist selection.
  */
 
 import { useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useSearch } from "@tanstack/react-router";
 import { motion, AnimatePresence } from "motion/react";
-import { MessageSquare, MessageCircle, LayoutDashboard, Command, PanelLeftClose } from "lucide-react";
+import {
+  MessageSquare,
+  MessageCircle,
+  LayoutDashboard,
+  Command,
+  PanelLeftClose,
+  Check,
+} from "lucide-react";
 import { SimpleChatDemo } from "@/components/apx/template-testing/SimpleChatDemo";
 import { FloatingWidgetDemo } from "@/components/apx/template-testing/FloatingWidgetDemo";
 import { DashboardChatDemo } from "@/components/apx/template-testing/DashboardChatDemo";
 import { CommandPaletteDemo } from "@/components/apx/template-testing/CommandPaletteDemo";
 import { QueryWorkspaceDemo } from "@/components/apx/template-testing/QueryWorkspaceDemo";
+import { useSpaceConfig, useUpdateSpaceTemplate } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+import { useQueryClient } from "@tanstack/react-query";
+
+interface TemplatesSearch {
+  spaceId?: string;
+}
 
 export const Route = createFileRoute("/_sidebar/templates")({
   component: TemplatesPage,
+  validateSearch: (search: Record<string, unknown>): TemplatesSearch => ({
+    spaceId: typeof search.spaceId === "string" ? search.spaceId : undefined,
+  }),
 });
 
 const TABS = [
@@ -55,8 +73,30 @@ const TABS = [
 ] as const;
 
 function TemplatesPage() {
+  const { spaceId } = useSearch({ from: "/_sidebar/templates" });
+  const { data: spaceConfig } = useSpaceConfig(spaceId);
+  const updateTemplate = useUpdateSpaceTemplate();
+  const queryClient = useQueryClient();
+
   const [activeTab, setActiveTab] = useState<string>("simple");
   const activeTabObj = TABS.find((t) => t.id === activeTab)!;
+
+  const currentTemplateId = spaceConfig
+    ? (spaceConfig as unknown as { template_id?: string }).template_id ?? "simple"
+    : undefined;
+
+  const handleSelectTemplate = (templateId: string) => {
+    if (!spaceId) return;
+    updateTemplate.mutate(
+      { spaceId, templateId },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: ["spaceConfig", spaceId] });
+          queryClient.invalidateQueries({ queryKey: ["spaces"] });
+        },
+      },
+    );
+  };
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -65,6 +105,7 @@ function TemplatesPage() {
         {TABS.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
+          const isSelected = currentTemplateId === tab.id;
           return (
             <button
               key={tab.id}
@@ -75,7 +116,10 @@ function TemplatesPage() {
             >
               <Icon className="h-4 w-4" />
               <div className="flex flex-col items-start">
-                <span>{tab.label}</span>
+                <span className="flex items-center gap-1.5">
+                  {tab.label}
+                  {isSelected && <Check className="h-3 w-3 text-green-500" />}
+                </span>
                 <span className="text-[10px] font-normal text-muted-foreground">
                   {tab.desc}
                 </span>
@@ -107,6 +151,18 @@ function TemplatesPage() {
           </motion.div>
         </AnimatePresence>
       </div>
+
+      {/* Apply button */}
+      {spaceId && activeTab !== currentTemplateId && (
+        <div className="border-t bg-background p-4 flex justify-end shrink-0">
+          <Button
+            onClick={() => handleSelectTemplate(activeTab)}
+            disabled={updateTemplate.isPending}
+          >
+            {updateTemplate.isPending ? "Applying..." : `Apply "${activeTabObj.label}" template`}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

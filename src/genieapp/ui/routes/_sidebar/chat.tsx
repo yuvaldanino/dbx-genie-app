@@ -1,19 +1,16 @@
 /**
  * Chat interface — send questions to Genie with async status polling.
  * Supports multi-space via spaceId search param.
+ * Uses useChatFlow hook for reusable polling logic.
  */
 
-import { useRef, useEffect, useState, useCallback } from "react";
+import { useState } from "react";
 import { createFileRoute, useSearch } from "@tanstack/react-router";
 import {
   useAppConfig,
   useSpaceConfig,
-  useStartChat,
-  useConversationMessages,
-  getChatStatus,
-  getChatResult,
-  type ChatMessageOut,
 } from "@/lib/api";
+import { useChatFlow } from "@/lib/useChatFlow";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MessageBubble } from "@/components/apx/MessageBubble";
@@ -33,187 +30,26 @@ export const Route = createFileRoute("/_sidebar/chat")({
   }),
 });
 
-interface Message {
-  question: string;
-  response?: ChatMessageOut;
-  statusText?: string;
-}
-
-const STATUS_LABELS: Record<string, string> = {
-  SUBMITTED: "Submitting...",
-  FETCHING_METADATA: "Fetching metadata...",
-  FILTERING_CONTEXT: "Analyzing context...",
-  ASKING_AI: "Generating SQL...",
-  PENDING_WAREHOUSE: "Waiting for warehouse...",
-  EXECUTING_QUERY: "Running query...",
-  COMPLETED: "Complete",
-  FAILED: "Failed",
-};
-
 function ChatPage() {
   const { conversationId: initialConvId, spaceId } = useSearch({ from: "/_sidebar/chat" });
 
-  // Use space-specific config if spaceId is present, otherwise default
   const { data: defaultConfig } = useAppConfig();
   const { data: spaceConfig } = useSpaceConfig(spaceId);
   const config = spaceId ? spaceConfig : defaultConfig;
 
-  const startChat = useStartChat();
+  const { messages, isSending, sendMessage, scrollRef } = useChatFlow({
+    spaceId,
+    initialConversationId: initialConvId,
+  });
+
   const [input, setInput] = useState("");
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [conversationId, setConversationId] = useState<string | undefined>(initialConvId);
-  const [isSending, setIsSending] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Load conversation messages when navigating from history
-  const { data: loadedMessages } = useConversationMessages(initialConvId);
-  const [loadedConvId, setLoadedConvId] = useState<string | undefined>();
-
-  useEffect(() => {
-    if (loadedMessages && initialConvId && initialConvId !== loadedConvId) {
-      setLoadedConvId(initialConvId);
-      setConversationId(initialConvId);
-      setMessages(
-        loadedMessages.map((m) => ({
-          question: m.question,
-          response: m.response ?? undefined,
-        })),
-      );
-    }
-  }, [loadedMessages, initialConvId, loadedConvId]);
-
-  // Auto-scroll to bottom on new messages
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [messages, isSending]);
-
-  const pollAndFetchResult = useCallback(
-    async (convId: string, msgId: string, msgIndex: number) => {
-      let attempts = 0;
-      const maxAttempts = 300;
-
-      while (attempts < maxAttempts) {
-        try {
-          const status = await getChatStatus(convId, msgId, spaceId);
-
-          const label = STATUS_LABELS[status.status] || status.status;
-          setMessages((prev) => {
-            const updated = [...prev];
-            if (updated[msgIndex]) {
-              updated[msgIndex] = { ...updated[msgIndex], statusText: label };
-            }
-            return updated;
-          });
-
-          if (status.is_complete) {
-            const result = await getChatResult(convId, msgId, spaceId);
-            setConversationId(result.conversation_id || undefined);
-            setMessages((prev) => {
-              const updated = [...prev];
-              if (updated[msgIndex]) {
-                updated[msgIndex] = {
-                  question: updated[msgIndex].question,
-                  response: result,
-                  statusText: undefined,
-                };
-              }
-              return updated;
-            });
-            return;
-          }
-        } catch {
-          // On error, keep polling
-        }
-
-        attempts++;
-        await new Promise((r) => setTimeout(r, 1000));
-      }
-
-      // Timeout
-      setMessages((prev) => {
-        const updated = [...prev];
-        if (updated[msgIndex]) {
-          updated[msgIndex] = {
-            question: updated[msgIndex].question,
-            response: {
-              conversation_id: convId,
-              message_id: msgId,
-              status: "FAILED",
-              description: "",
-              sql: "",
-              columns: [],
-              data: [],
-              row_count: 0,
-              chart_suggestion: null,
-              error: "Request timed out",
-              suggested_questions: [],
-              query_description: "",
-              is_truncated: false,
-              is_clarification: false,
-              error_type: "TIMEOUT",
-            },
-          };
-        }
-        return updated;
-      });
-    },
-    [spaceId],
-  );
-
-  const handleSend = useCallback(
-    (question?: string) => {
-      const q = question || input.trim();
-      if (!q || isSending) return;
-      setInput("");
-      setIsSending(true);
-
-      const msgIndex = messages.length;
-      setMessages((prev) => [...prev, { question: q, statusText: "Submitting..." }]);
-
-      startChat.mutate(
-        { question: q, conversationId, spaceId },
-        {
-          onSuccess: async (startResult) => {
-            const convId = startResult.conversation_id;
-            const msgId = startResult.message_id;
-            setConversationId(convId || undefined);
-            await pollAndFetchResult(convId, msgId, msgIndex);
-            setIsSending(false);
-          },
-          onError: (error) => {
-            setMessages((prev) => {
-              const updated = [...prev];
-              updated[msgIndex] = {
-                question: q,
-                response: {
-                  conversation_id: conversationId || "",
-                  message_id: "",
-                  status: "FAILED",
-                  description: "",
-                  sql: "",
-                  columns: [],
-                  data: [],
-                  row_count: 0,
-                  chart_suggestion: null,
-                  error: error instanceof Error ? error.message : "Request failed",
-                  suggested_questions: [],
-                  query_description: "",
-                  is_truncated: false,
-                  is_clarification: false,
-                  error_type: "UNKNOWN",
-                },
-              };
-              return updated;
-            });
-            setIsSending(false);
-          },
-        },
-      );
-    },
-    [input, isSending, messages.length, conversationId, spaceId, startChat, pollAndFetchResult],
-  );
+  function handleSend(question?: string) {
+    const q = question || input.trim();
+    if (!q) return;
+    setInput("");
+    sendMessage(q);
+  }
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Enter" && !e.shiftKey) {

@@ -6,6 +6,8 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { createFileRoute, Outlet, Link, useMatches } from "@tanstack/react-router";
 import { useAppConfig, useSpaceConfig, useConversations } from "@/lib/api";
+import { useAuth } from "@/components/apx/AuthProvider";
+import { PreferencesPanel } from "@/components/apx/PreferencesPanel";
 import { useTheme } from "@/components/apx/theme-provider";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -29,6 +31,8 @@ import {
   Moon,
   History,
   Layout,
+  User,
+  Settings,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_sidebar")({
@@ -59,6 +63,8 @@ function SidebarLayout() {
   const isResizing = useRef(false);
   const { theme, setTheme } = useTheme();
 
+  const { user } = useAuth();
+  const [prefsOpen, setPrefsOpen] = useState(false);
   const branding = config?.branding;
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -240,18 +246,44 @@ function SidebarLayout() {
           </div>
         </ScrollArea>
 
-        {/* Theme toggle */}
+        {/* User + Settings */}
         <Separator />
-        <div className="p-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="w-full justify-start gap-2 text-xs"
-            onClick={() => setTheme(isDark ? "light" : "dark")}
-          >
-            {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-            {isDark ? "Light Mode" : "Dark Mode"}
-          </Button>
+        <div className="p-2 space-y-1 relative">
+          {user && user.user_id !== "anonymous" && (
+            <div className="flex items-center gap-2 px-2 py-1.5">
+              <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                <User className="h-3 w-3 text-primary" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-medium truncate">
+                  {user.username || user.email || user.user_id}
+                </p>
+                {user.email && user.username && (
+                  <p className="text-[10px] text-muted-foreground truncate">{user.email}</p>
+                )}
+              </div>
+            </div>
+          )}
+          <div className="flex gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="flex-1 justify-start gap-2 text-xs"
+              onClick={() => setTheme(isDark ? "light" : "dark")}
+            >
+              {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              {isDark ? "Light" : "Dark"}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-2 text-xs"
+              onClick={() => setPrefsOpen(!prefsOpen)}
+            >
+              <Settings className="h-4 w-4" />
+            </Button>
+          </div>
+          <PreferencesPanel open={prefsOpen} onClose={() => setPrefsOpen(false)} />
         </div>
 
         {/* Resize handle */}

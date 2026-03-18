@@ -1,3 +1,4 @@
+import { AuthProvider } from "@/components/apx/AuthProvider";
 import { ThemeProvider } from "@/components/apx/theme-provider";
 import { QueryClient } from "@tanstack/react-query";
 import { createRootRouteWithContext, Outlet } from "@tanstack/react-router";
@@ -9,10 +10,12 @@ export const Route = createRootRouteWithContext<{
 }>()({
   component: () => (
     <ThemeProvider defaultTheme="dark" storageKey="genieapp-theme">
-      <TooltipProvider>
-        <Outlet />
-        <Toaster richColors />
-      </TooltipProvider>
+      <AuthProvider>
+        <TooltipProvider>
+          <Outlet />
+          <Toaster richColors />
+        </TooltipProvider>
+      </AuthProvider>
     </ThemeProvider>
   ),
 });

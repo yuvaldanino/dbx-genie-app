@@ -387,3 +387,125 @@ def get_conversation_messages(
         f"SELECT * FROM {_MESSAGES_TABLE} WHERE conversation_id = '{safe_conv}' ORDER BY created_at ASC",
     )
     return parse_sql_rows(result)
+
+
+# ---------------------------------------------------------------------------
+# Spaces
+# ---------------------------------------------------------------------------
+
+def create_space(
+    ws: WorkspaceClient,
+    space_id: str,
+    owner_user_id: str,
+    company_name: str,
+    description: str = "",
+    schema_name: str | None = None,
+    space_type: str = "generated",
+    template_id: str = "simple",
+    logo_volume_path: str = "",
+    primary_color: str = "#1a73e8",
+    secondary_color: str = "#ea4335",
+    accent_color: str = "",
+    chart_colors: list[str] | None = None,
+    tables_json: str = "[]",
+    sample_questions_json: str = "[]",
+    warehouse_id: str = "",
+) -> dict[str, Any]:
+    """Insert a new space record in the spaces table."""
+    now = _now_iso()
+    chart_colors_str = json.dumps(chart_colors or [])
+    run_sql(
+        ws,
+        f"""INSERT INTO {_SPACES_TABLE}
+            (space_id, owner_user_id, company_name, description, schema_name, space_type,
+             template_id, logo_volume_path, primary_color, secondary_color, accent_color,
+             chart_colors_json, tables_json, sample_questions_json, warehouse_id,
+             is_active, created_at, updated_at)
+            VALUES ('{_escape(space_id)}', '{_escape(owner_user_id)}', '{_escape(company_name)}',
+                    '{_escape(description)}', '{_escape(schema_name or "")}', '{_escape(space_type)}',
+                    '{_escape(template_id)}', '{_escape(logo_volume_path)}',
+                    '{_escape(primary_color)}', '{_escape(secondary_color)}', '{_escape(accent_color)}',
+                    '{_escape(chart_colors_str)}', '{_escape(tables_json)}',
+                    '{_escape(sample_questions_json)}', '{_escape(warehouse_id)}',
+                    true, '{now}', '{now}')""",
+    )
+    _space_list_cache.clear()
+    return {
+        "space_id": space_id,
+        "owner_user_id": owner_user_id,
+        "company_name": company_name,
+        "description": description,
+        "space_type": space_type,
+        "template_id": template_id,
+        "primary_color": primary_color,
+        "secondary_color": secondary_color,
+        "accent_color": accent_color,
+        "chart_colors_json": chart_colors_str,
+        "is_active": True,
+        "created_at": now,
+    }
+
+
+def list_user_spaces(
+    ws: WorkspaceClient,
+    user_id: str,
+) -> list[dict[str, Any]]:
+    """List active spaces owned by a user."""
+    cache_key = f"spaces:{user_id}"
+    cached = _space_list_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    safe_user = _escape(user_id)
+    result = run_sql(
+        ws,
+        f"SELECT * FROM {_SPACES_TABLE} WHERE owner_user_id = '{safe_user}' AND is_active = true ORDER BY created_at DESC",
+    )
+    rows = parse_sql_rows(result)
+    _space_list_cache[cache_key] = rows
+    return rows
+
+
+def get_space(
+    ws: WorkspaceClient,
+    space_id: str,
+) -> dict[str, Any] | None:
+    """Get a single space by ID."""
+    safe_id = _escape(space_id)
+    result = run_sql(
+        ws,
+        f"SELECT * FROM {_SPACES_TABLE} WHERE space_id = '{safe_id}' AND is_active = true LIMIT 1",
+    )
+    rows = parse_sql_rows(result)
+    return rows[0] if rows else None
+
+
+def update_space_template(
+    ws: WorkspaceClient,
+    space_id: str,
+    template_id: str,
+) -> None:
+    """Update the template_id for a space."""
+    now = _now_iso()
+    run_sql(
+        ws,
+        f"""UPDATE {_SPACES_TABLE}
+            SET template_id = '{_escape(template_id)}', updated_at = '{now}'
+            WHERE space_id = '{_escape(space_id)}'""",
+    )
+    _space_list_cache.clear()
+
+
+def soft_delete_space(
+    ws: WorkspaceClient,
+    space_id: str,
+) -> None:
+    """Soft-delete a space by setting is_active = false."""
+    now = _now_iso()
+    run_sql(
+        ws,
+        f"""UPDATE {_SPACES_TABLE}
+            SET is_active = false, updated_at = '{now}'
+            WHERE space_id = '{_escape(space_id)}'""",
+    )
+    _space_list_cache.clear()

@@ -179,15 +179,34 @@ class SpaceOut(BaseModel):
     secondary_color: str | None = "#ea4335"
     accent_color: str | None = ""
     chart_colors: list[str] | None = []
+    template_id: str | None = "simple"
+    space_type: str | None = "generated"
     created_at: str | None = ""
 
 
 class CreateSpaceIn(BaseModel):
-    """Input for creating a new Genie Space."""
+    """Input for creating a new Genie Space via pipeline."""
 
     company_name: str
     description: str
     logo_url: str = ""
+
+
+class CreateByogSpaceIn(BaseModel):
+    """Input for connecting a Bring Your Own Genie Space."""
+
+    space_id: str
+    company_name: str
+    primary_color: str = "#1a73e8"
+    secondary_color: str = "#ea4335"
+    accent_color: str = ""
+    template_id: str = "simple"
+
+
+class UpdateTemplateIn(BaseModel):
+    """Input for updating a space's template."""
+
+    template_id: str
 
 
 class CreateSpaceOut(BaseModel):

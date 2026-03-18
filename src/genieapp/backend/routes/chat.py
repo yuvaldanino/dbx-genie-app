@@ -116,6 +116,12 @@ async def version() -> VersionOut:
     return VersionOut.from_metadata()
 
 
+@router.get("/health", operation_id="healthCheck")
+async def health_check() -> dict[str, str]:
+    """Health check endpoint for monitoring."""
+    return {"status": "healthy"}
+
+
 # --- Chat (sync) ---
 
 @router.post("/chat", response_model=ChatMessageOut, operation_id="sendChatMessage")

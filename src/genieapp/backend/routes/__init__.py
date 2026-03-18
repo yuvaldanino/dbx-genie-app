@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from . import chat, export, spaces, tables, users
+from . import chat, export, spaces, tables, upload, users
 
 # All sub-module routers, included by app.py onto the main API router
 sub_routers = [
@@ -11,4 +11,5 @@ sub_routers = [
     spaces.router,
     users.router,
     export.router,
+    upload.router,
 ]

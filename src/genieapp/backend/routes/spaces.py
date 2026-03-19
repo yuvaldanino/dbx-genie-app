@@ -90,28 +90,34 @@ def _fallback_spaces() -> list[SpaceOut]:
 
 @router.get("/spaces", response_model=list[SpaceOut], operation_id="listSpaces")
 def list_spaces(ws: Dependencies.Client, request: Request) -> list[SpaceOut]:
-    """List spaces owned by the current user. Falls back to sessions table + state.json."""
+    """List spaces: user-owned from spaces table + legacy sessions table, deduped by space_id."""
     user_id = _get_user_id(request)
+    seen_ids: set[str] = set()
+    spaces: list[SpaceOut] = []
 
-    # First try user-owned spaces from the new spaces table
+    # User-owned spaces from the spaces table
     try:
         rows = list_user_spaces(ws, user_id)
-        if rows:
-            return [_row_to_space_out(r) for r in rows]
+        for r in rows:
+            out = _row_to_space_out(r)
+            if out.space_id and out.space_id not in seen_ids:
+                seen_ids.add(out.space_id)
+                spaces.append(out)
     except Exception as e:
         logger.warning("list_user_spaces failed: %s", e)
 
-    # Fall back to legacy sessions table (for spaces created before multi-user)
+    # Legacy sessions table (pipeline-created spaces before multi-user)
     try:
         result = run_sql(
             ws,
             f"SELECT * FROM {_SESSIONS_TABLE} ORDER BY created_at DESC",
         )
-        rows = parse_sql_rows(result)
-        if rows:
-            return [
-                SpaceOut(
-                    space_id=r.get("space_id") or "",
+        for r in parse_sql_rows(result):
+            sid = r.get("space_id") or ""
+            if sid and sid not in seen_ids:
+                seen_ids.add(sid)
+                spaces.append(SpaceOut(
+                    space_id=sid,
                     company_name=r.get("company_name") or "",
                     description=r.get("description") or "",
                     logo_path=r.get("logo_path") or "",
@@ -120,13 +126,13 @@ def list_spaces(ws: Dependencies.Client, request: Request) -> list[SpaceOut]:
                     accent_color=r.get("accent_color") or "",
                     chart_colors=json.loads(r["chart_colors_json"]) if r.get("chart_colors_json") else [],
                     created_at=str(r.get("created_at") or ""),
-                )
-                for r in rows
-            ]
+                ))
     except Exception as e:
         logger.warning("sessions table fallback failed: %s", e)
 
-    return _fallback_spaces()
+    if not spaces:
+        return _fallback_spaces()
+    return spaces
 
 
 # --- BYOG (Bring Your Own Genie Space) ---

@@ -65,6 +65,7 @@ export function QueryWorkspace({ spaceId, config, initialConversationId }: Templ
   });
   const [input, setInput] = useState("");
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
+  const [savedSelectedIdx, setSavedSelectedIdx] = useState<number | null>(null);
   const [sidebarTab, setSidebarTab] = useState<"recent" | "saved">("recent");
 
   const { data: starredMessages = [] } = useStarredMessages(spaceId);
@@ -122,9 +123,16 @@ export function QueryWorkspace({ spaceId, config, initialConversationId }: Templ
     );
   }
 
-  // Selected message — defaults to latest
+  // Selected message — pick from correct source based on active tab
   const activeIdx = selectedIdx ?? (messages.length > 0 ? messages.length - 1 : null);
-  const activeMsg = activeIdx !== null ? messages[activeIdx] : null;
+  const activeMsg: Message | null = (() => {
+    if (sidebarTab === "saved" && savedSelectedIdx !== null) {
+      const sm = starredMessages[savedSelectedIdx];
+      if (!sm) return null;
+      return { question: sm.question, response: sm.response ?? undefined, is_starred: sm.is_starred };
+    }
+    return activeIdx !== null ? messages[activeIdx] : null;
+  })();
 
   const savedCount = starredMessages.length;
 
@@ -253,24 +261,57 @@ export function QueryWorkspace({ spaceId, config, initialConversationId }: Templ
                       ? "Chart"
                       : "Table"
                     : "Table";
+                  const isSavedActive = savedSelectedIdx === i;
                   return (
                     <div
                       key={`saved-${i}`}
-                      className="rounded-lg border bg-card hover:bg-muted/50 border-transparent hover:border-border px-3 py-2.5 cursor-pointer transition-all"
-                      onClick={() => {
-                        // Switch to Recent tab and find matching message
-                        const matchIdx = messages.findIndex(
-                          (m) => m.response?.message_id === sm.response?.message_id,
-                        );
-                        if (matchIdx >= 0) {
-                          setSidebarTab("recent");
-                          setSelectedIdx(matchIdx);
-                        }
-                      }}
+                      className={`rounded-lg border px-3 py-2.5 cursor-pointer transition-all ${
+                        isSavedActive
+                          ? "bg-amber-50 border-amber-200 dark:bg-amber-950/30 dark:border-amber-800/50 shadow-sm"
+                          : "bg-card hover:bg-muted/50 border-transparent hover:border-border"
+                      }`}
+                      onClick={() => setSavedSelectedIdx(i)}
                     >
                       <div className="flex items-start justify-between gap-2">
-                        <p className="text-sm leading-snug line-clamp-2">{sm.question}</p>
-                        <Pin className="h-3.5 w-3.5 shrink-0 mt-0.5 text-primary" />
+                        <p className={`text-sm leading-snug ${isSavedActive ? "font-medium" : ""} line-clamp-2`}>
+                          {sm.question}
+                        </p>
+                        <button
+                          className="shrink-0 mt-0.5 p-0.5 rounded transition-colors text-primary hover:text-destructive"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!sm.response?.conversation_id || !sm.response?.message_id) return;
+                            // Optimistic update — sync Recent tab pin icon
+                            const matchIdx = messages.findIndex(
+                              (m) => m.response?.message_id === sm.response?.message_id,
+                            );
+                            if (matchIdx >= 0) {
+                              setMessages((prev) => {
+                                const updated = [...prev];
+                                updated[matchIdx] = { ...updated[matchIdx], is_starred: false };
+                                return updated;
+                              });
+                            }
+                            toggleStarMutation.mutate(
+                              {
+                                convId: sm.response.conversation_id,
+                                msgId: sm.response.message_id,
+                                starred: false,
+                              },
+                              {
+                                onSuccess: () => {
+                                  if (savedSelectedIdx === i) setSavedSelectedIdx(null);
+                                  else if (savedSelectedIdx !== null && savedSelectedIdx > i) setSavedSelectedIdx(savedSelectedIdx - 1);
+                                  queryClient.invalidateQueries({ queryKey: ["starredMessages", spaceId] });
+                                  queryClient.invalidateQueries({ queryKey: ["conversationMessages"] });
+                                },
+                              },
+                            );
+                          }}
+                          title="Unpin"
+                        >
+                          <PinOff className="h-3.5 w-3.5" />
+                        </button>
                       </div>
                       <div className="flex items-center gap-2 mt-1.5">
                         <ResultBadge type={resultType as "Chart" | "Table"} />

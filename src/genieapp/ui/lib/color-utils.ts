@@ -41,6 +41,14 @@ function extractHue(oklchStr: string): number {
   return match ? parseFloat(match[1]) : 255;
 }
 
+/** Extract the lightness (L) from an OKLCH string. */
+function extractLightness(oklchStr: string): number {
+  const match = oklchStr.match(
+    /oklch\(\s*([\d.]+)\s+[\d.]+\s+[\d.]+\s*\)/,
+  );
+  return match ? parseFloat(match[1]) : 0.5;
+}
+
 interface ThemeInput {
   primary: string;
   secondary: string;
@@ -72,10 +80,15 @@ export function deriveTheme(
   vars["--sidebar-primary"] = vars["--primary"];
   vars["--sidebar-ring"] = vars["--primary"];
 
-  // Foregrounds — white for branded backgrounds
-  vars["--primary-foreground"] = "oklch(0.99 0 0)";
-  vars["--accent-foreground"] = "oklch(0.99 0 0)";
-  vars["--sidebar-primary-foreground"] = "oklch(0.99 0 0)";
+  // Foregrounds — auto-flip to dark text when background is light
+  const primaryL = extractLightness(vars["--primary"]);
+  const accentL = extractLightness(vars["--accent"]);
+  vars["--primary-foreground"] =
+    primaryL > 0.62 ? `oklch(0.15 0.02 ${hue.toFixed(2)})` : "oklch(0.99 0 0)";
+  vars["--accent-foreground"] =
+    accentL > 0.62 ? `oklch(0.15 0.02 ${hue.toFixed(2)})` : "oklch(0.99 0 0)";
+  vars["--sidebar-primary-foreground"] =
+    primaryL > 0.62 ? `oklch(0.15 0.02 ${hue.toFixed(2)})` : "oklch(0.99 0 0)";
 
   // Derived tinted neutrals from primary hue
   if (mode === "light") {

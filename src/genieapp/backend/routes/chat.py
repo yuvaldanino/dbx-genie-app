@@ -12,8 +12,10 @@ from ..db import (
     create_conversation,
     get_conversation,
     get_conversation_messages,
+    get_starred_messages,
     increment_conversation_message_count,
     list_conversations,
+    toggle_star_message,
     update_message_result,
 )
 from ..genie_client import (
@@ -31,6 +33,7 @@ from ..models import (
     ConversationMessageOut,
     ConversationOut,
     FeedbackIn,
+    StarIn,
     VersionOut,
 )
 
@@ -88,8 +91,8 @@ def _persist_message_start(
             create_conversation(ws, conversation_id, space_id, user_id, question)
         add_message(ws, message_id, conversation_id, user_id, question)
         increment_conversation_message_count(ws, conversation_id)
-    except Exception as e:
-        logger.warning("Failed to persist message start: %s", e)
+    except Exception:
+        logger.exception("Failed to persist message start")
 
 
 def _persist_message_result(ws, conversation_id: str, message_id: str, result: dict) -> None:
@@ -104,8 +107,8 @@ def _persist_message_result(ws, conversation_id: str, message_id: str, result: d
             description=result.get("description", ""),
             is_clarification=result.get("is_clarification", False),
         )
-    except Exception as e:
-        logger.warning("Failed to persist message result: %s", e)
+    except Exception:
+        logger.exception("Failed to persist message result")
 
 
 # --- Version ---
@@ -276,26 +279,115 @@ def list_conversations_endpoint(
 def get_conversation_messages_endpoint(
     conv_id: str,
     ws: Dependencies.Client,
+    space_id: str | None = None,
 ) -> list[ConversationMessageOut]:
-    """Get all messages in a conversation from DB."""
+    """Get all messages in a conversation, re-fetching data from Genie API."""
     rows = get_conversation_messages(ws, conv_id)
+
+    # Resolve space_id from conversation record if not provided
+    if not space_id:
+        conv = get_conversation(ws, conv_id)
+        space_id = conv.get("space_id") if conv else None
+
     messages = []
     for row in rows:
         response = None
+        is_starred = row.get("is_starred") in (True, "true", "1")
+        msg_id = row.get("message_id", "")
+
         if row.get("status") in ("COMPLETED", "FAILED", "NO_RESULT"):
-            response = ChatMessageOut(
-                conversation_id=conv_id,
-                message_id=row.get("message_id", ""),
-                status=row.get("status", "COMPLETED"),
-                description=row.get("description", ""),
-                sql=row.get("sql_text", ""),
-                columns=[],
-                data=[],
-                row_count=0,
-                is_clarification=row.get("is_clarification") in (True, "true", "1"),
-            )
+            # Try re-fetching full data from Genie API
+            if row.get("status") == "COMPLETED" and msg_id and space_id:
+                try:
+                    result = get_genie_result(ws, space_id, conv_id, msg_id)
+                    response = _result_to_response(result)
+                    response.is_starred = is_starred
+                except Exception:
+                    logger.debug("Could not re-fetch Genie data for %s/%s", conv_id, msg_id)
+                    response = None
+
+            # Fallback to metadata-only response
+            if response is None:
+                response = ChatMessageOut(
+                    conversation_id=conv_id,
+                    message_id=msg_id,
+                    status=row.get("status", "COMPLETED"),
+                    description=row.get("description", ""),
+                    sql=row.get("sql_text", ""),
+                    columns=[],
+                    data=[],
+                    row_count=0,
+                    is_clarification=row.get("is_clarification") in (True, "true", "1"),
+                    is_starred=is_starred,
+                )
+
         messages.append(ConversationMessageOut(
             question=row.get("question", ""),
             response=response,
+            is_starred=is_starred,
         ))
     return messages
+
+
+# --- Starred Queries ---
+
+@router.get(
+    "/chat/starred",
+    response_model=list[ConversationMessageOut],
+    operation_id="getStarredMessages",
+)
+def get_starred_messages_endpoint(
+    ws: Dependencies.Client,
+    request: Request,
+    space_id: str | None = None,
+) -> list[ConversationMessageOut]:
+    """Get starred messages for the current user in a space."""
+    user_id = _get_user_id(request)
+    if not space_id:
+        return []
+    rows = get_starred_messages(ws, user_id, space_id)
+    messages = []
+    for row in rows:
+        response = None
+        msg_id = row.get("message_id", "")
+        conv_id = row.get("conversation_id", "")
+        if row.get("status") == "COMPLETED" and msg_id and space_id:
+            try:
+                result = get_genie_result(ws, space_id, conv_id, msg_id)
+                response = _result_to_response(result)
+                response.is_starred = True
+            except Exception:
+                response = ChatMessageOut(
+                    conversation_id=conv_id,
+                    message_id=msg_id,
+                    status=row.get("status", "COMPLETED"),
+                    description=row.get("description", ""),
+                    sql=row.get("sql_text", ""),
+                    columns=[],
+                    data=[],
+                    row_count=0,
+                    is_starred=True,
+                )
+        messages.append(ConversationMessageOut(
+            question=row.get("question", ""),
+            response=response,
+            is_starred=True,
+        ))
+    return messages
+
+
+@router.patch(
+    "/chat/{conv_id}/{msg_id}/star",
+    operation_id="toggleStar",
+)
+def toggle_star_endpoint(
+    conv_id: str,
+    msg_id: str,
+    body: StarIn,
+    ws: Dependencies.Client,
+    request: Request,
+) -> dict[str, bool]:
+    """Toggle star status for a message."""
+    user_id = _get_user_id(request)
+    toggle_star_message(ws, msg_id, conv_id, user_id, body.starred)
+    return {"starred": body.starred}

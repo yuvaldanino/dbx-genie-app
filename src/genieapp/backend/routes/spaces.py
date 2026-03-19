@@ -29,6 +29,7 @@ from ..models import (
     CreateSpaceIn,
     CreateSpaceOut,
     JobStatusOut,
+    RegisterSpaceIn,
     SpaceOut,
     TableInfoBrief,
     UpdateTemplateIn,
@@ -183,6 +184,59 @@ def create_byog_space(
     return _row_to_space_out(row)
 
 
+# --- Register pipeline space ---
+
+@router.post("/spaces/register", response_model=SpaceOut, operation_id="registerPipelineSpace")
+def register_pipeline_space(
+    req: RegisterSpaceIn,
+    ws: Dependencies.Client,
+    request: Request,
+) -> SpaceOut:
+    """Register a pipeline-created space (from sessions table) into the spaces table."""
+    user_id = _get_user_id(request)
+
+    # Already in spaces table? Just update template if needed.
+    existing = get_space(ws, req.space_id)
+    if existing:
+        if req.template_id != (existing.get("template_id") or "simple"):
+            update_space_template(ws, req.space_id, req.template_id)
+            existing["template_id"] = req.template_id
+        return _row_to_space_out(existing)
+
+    # Read from sessions table
+    safe_id = _escape(req.space_id)
+    result = run_sql(ws, f"SELECT * FROM {_SESSIONS_TABLE} WHERE space_id = '{safe_id}' LIMIT 1")
+    sess_rows = parse_sql_rows(result)
+    if not sess_rows:
+        raise HTTPException(status_code=404, detail=f"Space '{req.space_id}' not found in sessions table")
+
+    row = sess_rows[0]
+    chart_colors: list[str] = []
+    if row.get("chart_colors_json"):
+        try:
+            chart_colors = json.loads(row["chart_colors_json"])
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    new_row = db_create_space(
+        ws=ws,
+        space_id=req.space_id,
+        owner_user_id=user_id,
+        company_name=row.get("company_name", ""),
+        description=row.get("description", ""),
+        space_type="generated",
+        template_id=req.template_id,
+        logo_volume_path=row.get("logo_path", ""),
+        primary_color=row.get("primary_color", "#1a73e8"),
+        secondary_color=row.get("secondary_color", "#ea4335"),
+        accent_color=row.get("accent_color", ""),
+        chart_colors=chart_colors,
+        tables_json=row.get("tables_json", "[]"),
+        sample_questions_json=row.get("sample_questions_json", "[]"),
+    )
+    return _row_to_space_out(new_row)
+
+
 # --- Template selection ---
 
 @router.patch(
@@ -257,6 +311,7 @@ def get_space_config(space_id: str, ws: Dependencies.Client) -> AppConfigOut:
                 )
                 for t in tables_info
             ],
+            template_id=space.get("template_id") or "simple",
         )
 
     # Fall back to legacy sessions table
@@ -299,6 +354,7 @@ def get_space_config(space_id: str, ws: Dependencies.Client) -> AppConfigOut:
                 )
                 for t in tables_info
             ],
+            template_id=row.get("template_id") or "simple",
         )
 
     # Final fallback: state.json
@@ -320,6 +376,7 @@ def get_space_config(space_id: str, ws: Dependencies.Client) -> AppConfigOut:
             TableInfoBrief(full_name=t.full_name, table_name=t.table_name, comment=t.comment)
             for t in state.tables
         ],
+        template_id="simple",
     )
 
 

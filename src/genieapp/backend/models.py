@@ -49,6 +49,7 @@ class AppConfigOut(BaseModel):
     sample_questions: list[str] = []
     branding: BrandingOut
     tables: list[TableInfoBrief] = []
+    template_id: str = "simple"
 
 
 # --- Chat ---
@@ -88,6 +89,7 @@ class ChatMessageOut(BaseModel):
     is_truncated: bool = False
     is_clarification: bool = False
     error_type: str = ""
+    is_starred: bool = False
 
 
 class FeedbackIn(BaseModel):
@@ -96,6 +98,12 @@ class FeedbackIn(BaseModel):
     conversation_id: str
     message_id: str
     rating: str = Field(description="THUMBS_UP or THUMBS_DOWN")
+
+
+class StarIn(BaseModel):
+    """Toggle star status for a message."""
+
+    starred: bool
 
 
 class ChatStartOut(BaseModel):
@@ -164,6 +172,7 @@ class ConversationMessageOut(BaseModel):
 
     question: str
     response: ChatMessageOut | None = None
+    is_starred: bool = False
 
 
 # --- Spaces ---
@@ -200,6 +209,13 @@ class CreateByogSpaceIn(BaseModel):
     primary_color: str = "#1a73e8"
     secondary_color: str = "#ea4335"
     accent_color: str = ""
+    template_id: str = "simple"
+
+
+class RegisterSpaceIn(BaseModel):
+    """Input for registering a pipeline-created space from sessions into spaces table."""
+
+    space_id: str
     template_id: str = "simple"
 
 

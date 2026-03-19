@@ -28,13 +28,31 @@ _user_cache: TTLCache = TTLCache(maxsize=256, ttl=300)  # 5 min
 _space_list_cache: TTLCache = TTLCache(maxsize=256, ttl=30)  # 30s
 
 
-def run_sql(ws: WorkspaceClient, sql: str) -> dict:
-    """Execute SQL via the Databricks SQL Statements API."""
-    return ws.api_client.do(
+def run_sql(ws: WorkspaceClient, sql: str, *, raise_on_error: bool = True) -> dict:
+    """Execute SQL via the Databricks SQL Statements API.
+
+    Args:
+        ws: Databricks WorkspaceClient.
+        sql: SQL statement to execute.
+        raise_on_error: If True (default), raise RuntimeError on failed statements.
+
+    Returns:
+        Raw API response dict.
+
+    Raises:
+        RuntimeError: If the statement fails and raise_on_error is True.
+    """
+    result = ws.api_client.do(
         "POST",
         "/api/2.0/sql/statements",
         body={"statement": sql, "warehouse_id": WAREHOUSE_ID, "wait_timeout": "50s"},
     )
+    state = result.get("status", {}).get("state", "")
+    if raise_on_error and state not in ("SUCCEEDED", "RUNNING", "PENDING"):
+        error_msg = result.get("status", {}).get("error", {}).get("message", "Unknown error")
+        logger.error("SQL failed (%s): %s | SQL: %.200s", state, error_msg, sql)
+        raise RuntimeError(f"SQL failed ({state}): {error_msg}")
+    return result
 
 
 def parse_sql_rows(result: dict) -> list[dict]:
@@ -142,6 +160,18 @@ def ensure_tables(ws: WorkspaceClient) -> None:
         except Exception as e:
             logger.error("Failed to create table: %s", e)
             raise
+
+    # Migrations — add starred columns to messages table (safe if already exists).
+    # Delta tables don't support ADD COLUMN ... DEFAULT in one statement.
+    migration_columns = [
+        ("is_starred", "BOOLEAN"),
+        ("starred_by", "STRING"),
+    ]
+    for col_name, col_type in migration_columns:
+        try:
+            run_sql(ws, f"ALTER TABLE {_MESSAGES_TABLE} ADD COLUMN {col_name} {col_type}")
+        except (RuntimeError, Exception):
+            pass  # Column already exists
 
 
 # ---------------------------------------------------------------------------
@@ -385,6 +415,47 @@ def get_conversation_messages(
     result = run_sql(
         ws,
         f"SELECT * FROM {_MESSAGES_TABLE} WHERE conversation_id = '{safe_conv}' ORDER BY created_at ASC",
+    )
+    return parse_sql_rows(result)
+
+
+def toggle_star_message(
+    ws: WorkspaceClient,
+    message_id: str,
+    conversation_id: str,
+    user_id: str,
+    starred: bool,
+) -> None:
+    """Toggle the starred status of a message."""
+    safe_msg = _escape(message_id)
+    safe_conv = _escape(conversation_id)
+    safe_user = _escape(user_id)
+    run_sql(
+        ws,
+        f"""UPDATE {_MESSAGES_TABLE}
+            SET is_starred = {str(starred).lower()},
+                starred_by = '{safe_user}'
+            WHERE message_id = '{safe_msg}' AND conversation_id = '{safe_conv}'""",
+    )
+
+
+def get_starred_messages(
+    ws: WorkspaceClient,
+    user_id: str,
+    space_id: str,
+) -> list[dict[str, Any]]:
+    """Get starred messages for a user in a specific space."""
+    safe_user = _escape(user_id)
+    safe_space = _escape(space_id)
+    result = run_sql(
+        ws,
+        f"""SELECT m.* FROM {_MESSAGES_TABLE} m
+            JOIN {_CONVERSATIONS_TABLE} c ON m.conversation_id = c.conversation_id
+            WHERE m.starred_by = '{safe_user}'
+              AND m.is_starred = true
+              AND c.space_id = '{safe_space}'
+            ORDER BY m.created_at DESC
+            LIMIT 50""",
     )
     return parse_sql_rows(result)
 

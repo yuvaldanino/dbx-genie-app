@@ -1,26 +1,81 @@
 /**
- * Spaces page — browse previously created Genie Spaces or create a new one.
+ * Spaces page — browse previously created Genie Spaces, create new, or connect existing (BYOG).
  */
 
+import { useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useSpaces } from "@/lib/api";
+import { useSpaces, useCreateByogSpace } from "@/lib/api";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import {
   Sparkles,
   Plus,
   ArrowLeft,
   Building2,
   MessageSquare,
+  Link2,
+  X,
+  Loader2,
+  MessageCircle,
+  LayoutDashboard,
+  Command,
+  PanelLeftClose,
 } from "lucide-react";
 
 export const Route = createFileRoute("/spaces")({
   component: SpacesPage,
 });
 
+const TEMPLATE_OPTIONS = [
+  { id: "simple", label: "Simple Chat", icon: MessageSquare },
+  { id: "widget", label: "Floating Widget", icon: MessageCircle },
+  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { id: "command", label: "Command Palette", icon: Command },
+  { id: "workspace", label: "Query Workspace", icon: PanelLeftClose },
+] as const;
+
 function SpacesPage() {
   const navigate = useNavigate();
   const { data: spaces, isLoading } = useSpaces();
+  const queryClient = useQueryClient();
+  const createByog = useCreateByogSpace();
+
+  const [showByogForm, setShowByogForm] = useState(false);
+  const [byogSpaceId, setByogSpaceId] = useState("");
+  const [byogCompanyName, setByogCompanyName] = useState("");
+  const [byogPrimary, setByogPrimary] = useState("#4F46E5");
+  const [byogSecondary, setByogSecondary] = useState("#7C3AED");
+  const [byogTemplate, setByogTemplate] = useState("simple");
+  const [byogError, setByogError] = useState<string | null>(null);
+
+  /** Submit BYOG form. */
+  function handleByogSubmit() {
+    if (!byogSpaceId.trim() || !byogCompanyName.trim()) return;
+    setByogError(null);
+    createByog.mutate(
+      {
+        space_id: byogSpaceId.trim(),
+        company_name: byogCompanyName.trim(),
+        primary_color: byogPrimary,
+        secondary_color: byogSecondary,
+        template_id: byogTemplate,
+      },
+      {
+        onSuccess: (space) => {
+          queryClient.invalidateQueries({ queryKey: ["spaces"] });
+          setShowByogForm(false);
+          navigate({ to: "/chat", search: { spaceId: space.space_id } });
+        },
+        onError: (err) => {
+          setByogError(
+            err instanceof Error ? err.message : "Failed to connect space. Check the Space ID and try again.",
+          );
+        },
+      },
+    );
+  }
 
   return (
     <div
@@ -55,14 +110,137 @@ function SpacesPage() {
               Select an existing space or create a new one.
             </p>
           </div>
-          <Button
-            className="gap-2"
-            onClick={() => navigate({ to: "/" })}
-          >
-            <Plus className="h-4 w-4" />
-            Create New
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              className="gap-2"
+              onClick={() => setShowByogForm(!showByogForm)}
+            >
+              <Link2 className="h-4 w-4" />
+              Connect Existing
+            </Button>
+            <Button
+              className="gap-2"
+              onClick={() => navigate({ to: "/" })}
+            >
+              <Plus className="h-4 w-4" />
+              Create New
+            </Button>
+          </div>
         </div>
+
+        {/* BYOG Form */}
+        {showByogForm && (
+          <Card className="bg-card/80 backdrop-blur-sm mb-6">
+            <CardContent className="p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold">Connect Existing Genie Space</h2>
+                <Button variant="ghost" size="icon" onClick={() => setShowByogForm(false)}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium mb-1 block">Genie Space ID *</label>
+                  <Input
+                    value={byogSpaceId}
+                    onChange={(e) => setByogSpaceId(e.target.value)}
+                    placeholder="01ef..."
+                    disabled={createByog.isPending}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-1 block">Company Name *</label>
+                  <Input
+                    value={byogCompanyName}
+                    onChange={(e) => setByogCompanyName(e.target.value)}
+                    placeholder="Acme Corp"
+                    disabled={createByog.isPending}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-1 block">Primary Color</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="color"
+                      value={byogPrimary}
+                      onChange={(e) => setByogPrimary(e.target.value)}
+                      className="h-9 w-12 rounded border cursor-pointer"
+                      disabled={createByog.isPending}
+                    />
+                    <Input
+                      value={byogPrimary}
+                      onChange={(e) => setByogPrimary(e.target.value)}
+                      className="flex-1"
+                      disabled={createByog.isPending}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-1 block">Secondary Color</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="color"
+                      value={byogSecondary}
+                      onChange={(e) => setByogSecondary(e.target.value)}
+                      className="h-9 w-12 rounded border cursor-pointer"
+                      disabled={createByog.isPending}
+                    />
+                    <Input
+                      value={byogSecondary}
+                      onChange={(e) => setByogSecondary(e.target.value)}
+                      className="flex-1"
+                      disabled={createByog.isPending}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Template selector */}
+              <div>
+                <label className="text-sm font-medium mb-2 block">Template</label>
+                <div className="flex flex-wrap gap-2">
+                  {TEMPLATE_OPTIONS.map((t) => {
+                    const Icon = t.icon;
+                    return (
+                      <Button
+                        key={t.id}
+                        variant={byogTemplate === t.id ? "default" : "outline"}
+                        size="sm"
+                        className="gap-1.5"
+                        onClick={() => setByogTemplate(t.id)}
+                        disabled={createByog.isPending}
+                      >
+                        <Icon className="h-3.5 w-3.5" />
+                        {t.label}
+                      </Button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Error */}
+              {byogError && (
+                <div className="rounded-md bg-destructive/10 border border-destructive/30 px-3 py-2">
+                  <span className="text-sm text-destructive">{byogError}</span>
+                </div>
+              )}
+
+              <Button
+                className="w-full gap-2"
+                onClick={handleByogSubmit}
+                disabled={!byogSpaceId.trim() || !byogCompanyName.trim() || createByog.isPending}
+              >
+                {createByog.isPending ? (
+                  <><Loader2 className="h-4 w-4 animate-spin" /> Connecting...</>
+                ) : (
+                  <><Link2 className="h-4 w-4" /> Connect Space</>
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Spaces grid */}
         {isLoading ? (
@@ -95,7 +273,6 @@ function SpacesPage() {
               >
                 <CardContent className="p-5">
                   <div className="flex items-start gap-4">
-                    {/* Logo or placeholder */}
                     {space.logo_path ? (
                       <img
                         src={space.logo_path}

@@ -72,13 +72,17 @@ function isNumericColumn(data: Record<string, unknown>[], col: string): boolean 
 }
 
 export function ChartRenderer({ suggestion, data, columns }: ChartRendererProps) {
+  const numericCols = columns.filter((c) => isNumericColumn(data, c));
   const [chartType, setChartType] = useState<ChartType>(suggestion.chart_type as ChartType);
-  const [xAxis, setXAxis] = useState(suggestion.x_axis || columns[0]);
-  const [yAxis, setYAxis] = useState(suggestion.y_axis || columns[1] || columns[0]);
+  const [xAxis, setXAxis] = useState(() => {
+    return suggestion.x_axis && columns.includes(suggestion.x_axis) ? suggestion.x_axis : columns[0];
+  });
+  const [yAxis, setYAxis] = useState(() => {
+    if (suggestion.y_axis && numericCols.includes(suggestion.y_axis)) return suggestion.y_axis;
+    return numericCols[0] || columns[1] || columns[0];
+  });
 
   if (!data.length) return null;
-
-  const numericCols = columns.filter((c) => isNumericColumn(data, c));
   const chartData = yAxis ? coerceNumeric(data, yAxis) : data;
 
   // Map — lat/lon markers

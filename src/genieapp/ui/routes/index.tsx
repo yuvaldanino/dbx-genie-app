@@ -1,10 +1,11 @@
 /**
  * Landing page — create a new Genie Space by providing company name and description.
+ * Supports logo via URL or file upload to UC Volumes.
  */
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { createSpace, getJobStatus } from "@/lib/api";
+import { createSpace, getJobStatus, uploadImage, registerPipelineSpace } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -14,6 +15,9 @@ import {
   Loader2,
   History,
   AlertTriangle,
+  Upload,
+  Link2,
+  X,
 } from "lucide-react";
 
 export const Route = createFileRoute("/")({
@@ -33,9 +37,49 @@ function LandingPage() {
   const [companyName, setCompanyName] = useState("");
   const [description, setDescription] = useState("");
   const [logoUrl, setLogoUrl] = useState("");
+  const [logoMode, setLogoMode] = useState<"url" | "upload">("url");
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [uploadedPath, setUploadedPath] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [progress, setProgress] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  /** Handle file selection and upload. */
+  const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLogoFile(file);
+    setLogoPreview(URL.createObjectURL(file));
+    setIsUploading(true);
+    setError(null);
+
+    try {
+      const result = await uploadImage(file);
+      setUploadedPath(result.volume_path);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to upload image");
+      setLogoFile(null);
+      setLogoPreview(null);
+    } finally {
+      setIsUploading(false);
+    }
+  }, []);
+
+  /** Clear uploaded file. */
+  const clearUpload = () => {
+    setLogoFile(null);
+    setLogoPreview(null);
+    setUploadedPath(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  /** Resolve the logo value to pass to createSpace. */
+  const resolvedLogoUrl = logoMode === "upload" && uploadedPath
+    ? uploadedPath
+    : logoUrl.trim() || undefined;
 
   const handleCreate = useCallback(async () => {
     if (!companyName.trim() || !description.trim() || isCreating) return;
@@ -44,12 +88,10 @@ function LandingPage() {
     setProgress("Starting pipeline...");
 
     try {
-      // Trigger the DABs job
-      const { run_id } = await createSpace(companyName.trim(), description.trim(), logoUrl.trim() || undefined);
+      const { run_id } = await createSpace(companyName.trim(), description.trim(), resolvedLogoUrl);
 
-      // Poll for completion
       let attempts = 0;
-      const maxAttempts = 200; // ~10 minutes at 3s intervals
+      const maxAttempts = 200;
 
       while (attempts < maxAttempts) {
         await new Promise((r) => setTimeout(r, 3000));
@@ -60,6 +102,12 @@ function LandingPage() {
 
         if (status.status === "COMPLETED") {
           if (status.space_id) {
+            // Register pipeline space (copies session → spaces table)
+            try {
+              await registerPipelineSpace(status.space_id);
+            } catch {
+              // Non-critical — space may still work via sessions fallback
+            }
             navigate({ to: "/chat", search: { spaceId: status.space_id } });
           } else {
             navigate({ to: "/spaces" });
@@ -82,7 +130,7 @@ function LandingPage() {
       setError(e instanceof Error ? e.message : "Failed to start pipeline");
       setIsCreating(false);
     }
-  }, [companyName, description, logoUrl, isCreating, navigate]);
+  }, [companyName, description, resolvedLogoUrl, isCreating, navigate]);
 
   const canSubmit = companyName.trim().length > 0 && description.trim().length > 0 && !isCreating;
 
@@ -123,17 +171,95 @@ function LandingPage() {
             />
           </div>
 
-          {/* Logo URL */}
+          {/* Logo — URL or Upload toggle */}
           <div>
-            <label className="text-sm font-medium mb-2 block text-left">
-              Logo URL <span className="text-muted-foreground font-normal">(optional)</span>
-            </label>
-            <Input
-              value={logoUrl}
-              onChange={(e) => setLogoUrl(e.target.value)}
-              placeholder="https://logo.clearbit.com/company.com"
-              disabled={isCreating}
-            />
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-sm font-medium">
+                Logo <span className="text-muted-foreground font-normal">(optional)</span>
+              </label>
+              <div className="flex border rounded-md overflow-hidden">
+                <button
+                  type="button"
+                  className={`px-2.5 py-1 text-xs flex items-center gap-1 transition-colors ${
+                    logoMode === "url"
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-background text-muted-foreground hover:text-foreground"
+                  }`}
+                  onClick={() => setLogoMode("url")}
+                  disabled={isCreating}
+                >
+                  <Link2 className="h-3 w-3" />
+                  URL
+                </button>
+                <button
+                  type="button"
+                  className={`px-2.5 py-1 text-xs flex items-center gap-1 transition-colors ${
+                    logoMode === "upload"
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-background text-muted-foreground hover:text-foreground"
+                  }`}
+                  onClick={() => setLogoMode("upload")}
+                  disabled={isCreating}
+                >
+                  <Upload className="h-3 w-3" />
+                  Upload
+                </button>
+              </div>
+            </div>
+
+            {logoMode === "url" ? (
+              <Input
+                value={logoUrl}
+                onChange={(e) => setLogoUrl(e.target.value)}
+                placeholder="https://logo.clearbit.com/company.com"
+                disabled={isCreating}
+              />
+            ) : (
+              <div className="space-y-2">
+                {logoPreview ? (
+                  <div className="flex items-center gap-3 rounded-md border p-2">
+                    <img src={logoPreview} alt="Preview" className="h-10 w-10 object-contain rounded" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs truncate">{logoFile?.name}</p>
+                      {isUploading && (
+                        <p className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Loader2 className="h-3 w-3 animate-spin" /> Uploading...
+                        </p>
+                      )}
+                      {uploadedPath && (
+                        <p className="text-xs text-green-600">Uploaded</p>
+                      )}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 shrink-0"
+                      onClick={clearUpload}
+                      disabled={isCreating}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    className="w-full border-2 border-dashed rounded-md py-6 text-center text-sm text-muted-foreground hover:border-primary/50 hover:text-foreground transition-colors cursor-pointer"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isCreating}
+                  >
+                    <Upload className="h-5 w-5 mx-auto mb-1" />
+                    Click to upload PNG, JPG, or SVG
+                  </button>
+                )}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/svg+xml"
+                  className="hidden"
+                  onChange={handleFileSelect}
+                />
+              </div>
+            )}
           </div>
 
           {/* Company description */}

@@ -52,8 +52,8 @@ run_sql() {
 }
 
 run_sql "GRANT USE_CATALOG ON CATALOG ${CATALOG} TO \\\`${SP_APP_ID}\\\`"
-run_sql "GRANT USE_SCHEMA, SELECT ON SCHEMA ${CATALOG}.${SCHEMA} TO \\\`${SP_APP_ID}\\\`"
-run_sql "GRANT READ_VOLUME ON VOLUME ${CATALOG}.${SCHEMA}.${VOLUME} TO \\\`${SP_APP_ID}\\\`"
+run_sql "GRANT USE_SCHEMA, SELECT, MODIFY ON SCHEMA ${CATALOG}.${SCHEMA} TO \\\`${SP_APP_ID}\\\`"
+run_sql "GRANT READ_VOLUME, WRITE_VOLUME ON VOLUME ${CATALOG}.${SCHEMA}.${VOLUME} TO \\\`${SP_APP_ID}\\\`"
 echo "UC permissions granted."
 
 # 4. Run setup job (generates data, creates tables, creates Genie Space)

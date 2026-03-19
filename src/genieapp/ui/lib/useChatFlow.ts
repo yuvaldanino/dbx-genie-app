@@ -16,6 +16,7 @@ export interface Message {
   question: string;
   response?: ChatMessageOut;
   statusText?: string;
+  is_starred?: boolean;
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -34,6 +35,16 @@ interface UseChatFlowOptions {
   initialConversationId?: string;
 }
 
+/**
+ * Update the URL search params without triggering a full navigation.
+ * Uses replaceState so the browser back button isn't polluted.
+ */
+function syncSearchParam(key: string, value: string): void {
+  const url = new URL(window.location.href);
+  url.searchParams.set(key, value);
+  window.history.replaceState(null, "", url.toString());
+}
+
 export function useChatFlow(options: UseChatFlowOptions = {}) {
   const { spaceId, initialConversationId } = options;
   const startChat = useStartChat();
@@ -44,22 +55,30 @@ export function useChatFlow(options: UseChatFlowOptions = {}) {
   const [isSending, setIsSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // Keep conversationId in sync when initialConversationId changes
+  // (e.g., auto-loaded from most recent conversation)
+  useEffect(() => {
+    if (initialConversationId && initialConversationId !== conversationId) {
+      setConversationId(initialConversationId);
+    }
+  }, [initialConversationId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Load conversation messages when navigating from history
-  const { data: loadedMessages } = useConversationMessages(initialConversationId);
+  const { data: loadedMessages } = useConversationMessages(conversationId, spaceId);
   const [loadedConvId, setLoadedConvId] = useState<string | undefined>();
 
   useEffect(() => {
-    if (loadedMessages && initialConversationId && initialConversationId !== loadedConvId) {
-      setLoadedConvId(initialConversationId);
-      setConversationId(initialConversationId);
+    if (loadedMessages && conversationId && conversationId !== loadedConvId) {
+      setLoadedConvId(conversationId);
       setMessages(
         loadedMessages.map((m) => ({
           question: m.question,
           response: m.response ?? undefined,
+          is_starred: m.is_starred ?? false,
         })),
       );
     }
-  }, [loadedMessages, initialConversationId, loadedConvId]);
+  }, [loadedMessages, conversationId, loadedConvId]);
 
   // Auto-scroll
   useEffect(() => {
@@ -88,6 +107,13 @@ export function useChatFlow(options: UseChatFlowOptions = {}) {
           if (status.is_complete) {
             const result = await getChatResult(convId, msgId, spaceId);
             setConversationId(result.conversation_id || undefined);
+            // Sync conversationId + spaceId to URL so refresh works
+            if (result.conversation_id) {
+              syncSearchParam("conversationId", result.conversation_id);
+            }
+            if (spaceId) {
+              syncSearchParam("spaceId", spaceId);
+            }
             setMessages((prev) => {
               const updated = [...prev];
               if (updated[msgIndex]) {
@@ -154,6 +180,13 @@ export function useChatFlow(options: UseChatFlowOptions = {}) {
             const convId = startResult.conversation_id;
             const msgId = startResult.message_id;
             setConversationId(convId || undefined);
+            // Sync conversationId + spaceId to URL immediately
+            if (convId) {
+              syncSearchParam("conversationId", convId);
+            }
+            if (spaceId) {
+              syncSearchParam("spaceId", spaceId);
+            }
             await pollAndFetchResult(convId, msgId, msgIndex);
             setIsSending(false);
           },
@@ -192,6 +225,7 @@ export function useChatFlow(options: UseChatFlowOptions = {}) {
 
   return {
     messages,
+    setMessages,
     isSending,
     conversationId,
     sendMessage,

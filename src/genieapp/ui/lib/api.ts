@@ -35,6 +35,7 @@ export interface AppConfigOut {
   sample_questions: string[];
   branding: BrandingOut;
   tables: TableInfoBrief[];
+  template_id: string;
 }
 
 export interface ChartSuggestion {
@@ -60,6 +61,7 @@ export interface ChatMessageOut {
   is_truncated: boolean;
   is_clarification: boolean;
   error_type: string;
+  is_starred?: boolean;
 }
 
 export interface ChatStartOut {
@@ -107,6 +109,7 @@ export interface ConversationOut {
 export interface ConversationMessageOut {
   question: string;
   response: ChatMessageOut | null;
+  is_starred?: boolean;
 }
 
 export interface SpaceOut {
@@ -211,9 +214,11 @@ export async function listConversations(spaceId?: string): Promise<ConversationO
 
 export async function getConversationMessages(
   conversationId: string,
+  spaceId?: string,
 ): Promise<ConversationMessageOut[]> {
   const { data } = await api.get<ConversationMessageOut[]>(
     `/conversations/${conversationId}`,
+    { params: spaceId ? { space_id: spaceId } : {} },
   );
   return data;
 }
@@ -280,10 +285,11 @@ export function useConversations(
 
 export function useConversationMessages(
   conversationId: string | undefined,
+  spaceId?: string,
 ) {
   return useQuery({
-    queryKey: ["conversationMessages", conversationId],
-    queryFn: () => getConversationMessages(conversationId!),
+    queryKey: ["conversationMessages", conversationId, spaceId],
+    queryFn: () => getConversationMessages(conversationId!, spaceId),
     enabled: !!conversationId,
   });
 }
@@ -342,6 +348,49 @@ export function useChatResult(
 export function useSendFeedback() {
   return useMutation({
     mutationFn: (feedback: FeedbackIn) => sendFeedback(feedback),
+  });
+}
+
+// --- Starred Queries ---
+
+export async function toggleStar(
+  convId: string,
+  msgId: string,
+  starred: boolean,
+): Promise<{ starred: boolean }> {
+  const { data } = await api.patch(`/chat/${convId}/${msgId}/star`, { starred });
+  return data;
+}
+
+export async function getStarredMessages(
+  spaceId: string,
+): Promise<ConversationMessageOut[]> {
+  const { data } = await api.get<ConversationMessageOut[]>("/chat/starred", {
+    params: { space_id: spaceId },
+  });
+  return data;
+}
+
+export function useStarredMessages(spaceId?: string) {
+  return useQuery({
+    queryKey: ["starredMessages", spaceId],
+    queryFn: () => getStarredMessages(spaceId!),
+    enabled: !!spaceId,
+    staleTime: 10_000,
+  });
+}
+
+export function useToggleStar() {
+  return useMutation({
+    mutationFn: ({
+      convId,
+      msgId,
+      starred,
+    }: {
+      convId: string;
+      msgId: string;
+      starred: boolean;
+    }) => toggleStar(convId, msgId, starred),
   });
 }
 
@@ -406,7 +455,7 @@ export function useSpaceConfig(spaceId: string | undefined) {
     queryKey: ["spaceConfig", spaceId],
     queryFn: () => getSpaceConfig(spaceId!),
     enabled: !!spaceId,
-    staleTime: Infinity,
+    staleTime: 60_000,
   });
 }
 
@@ -453,6 +502,19 @@ export function useUpdateSpaceTemplate() {
     mutationFn: ({ spaceId, templateId }: { spaceId: string; templateId: string }) =>
       updateSpaceTemplate(spaceId, templateId),
   });
+}
+
+// --- Register pipeline space ---
+
+export async function registerPipelineSpace(
+  spaceId: string,
+  templateId?: string,
+): Promise<SpaceOut> {
+  const { data } = await api.post<SpaceOut>("/spaces/register", {
+    space_id: spaceId,
+    ...(templateId && { template_id: templateId }),
+  });
+  return data;
 }
 
 // --- BYOG ---

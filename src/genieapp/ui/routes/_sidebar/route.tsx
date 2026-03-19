@@ -30,7 +30,6 @@ import {
   Sun,
   Moon,
   History,
-  Layout,
   User,
   Settings,
 } from "lucide-react";
@@ -143,12 +142,6 @@ function SidebarLayout() {
             <Button variant="ghost" className="w-full justify-start gap-2">
               <MessageSquare className="h-4 w-4 text-primary" />
               Chat
-            </Button>
-          </Link>
-          <Link to="/templates">
-            <Button variant="ghost" className="w-full justify-start gap-2">
-              <Layout className="h-4 w-4 text-primary" />
-              Templates
             </Button>
           </Link>
         </nav>

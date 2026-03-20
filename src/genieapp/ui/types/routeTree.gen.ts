@@ -13,6 +13,7 @@ import { Route as SpacesRouteImport } from "./../routes/spaces"
 import { Route as SidebarRouteRouteImport } from "./../routes/_sidebar/route"
 import { Route as IndexRouteImport } from "./../routes/index"
 import { Route as SidebarTemplatesRouteImport } from "./../routes/_sidebar/templates"
+import { Route as SidebarDashboardRouteImport } from "./../routes/_sidebar/dashboard"
 import { Route as SidebarChatRouteImport } from "./../routes/_sidebar/chat"
 
 const SpacesRoute = SpacesRouteImport.update({
@@ -34,6 +35,11 @@ const SidebarTemplatesRoute = SidebarTemplatesRouteImport.update({
   path: "/templates",
   getParentRoute: () => SidebarRouteRoute,
 } as any)
+const SidebarDashboardRoute = SidebarDashboardRouteImport.update({
+  id: "/dashboard",
+  path: "/dashboard",
+  getParentRoute: () => SidebarRouteRoute,
+} as any)
 const SidebarChatRoute = SidebarChatRouteImport.update({
   id: "/chat",
   path: "/chat",
@@ -44,12 +50,14 @@ export interface FileRoutesByFullPath {
   "/": typeof IndexRoute
   "/spaces": typeof SpacesRoute
   "/chat": typeof SidebarChatRoute
+  "/dashboard": typeof SidebarDashboardRoute
   "/templates": typeof SidebarTemplatesRoute
 }
 export interface FileRoutesByTo {
   "/": typeof IndexRoute
   "/spaces": typeof SpacesRoute
   "/chat": typeof SidebarChatRoute
+  "/dashboard": typeof SidebarDashboardRoute
   "/templates": typeof SidebarTemplatesRoute
 }
 export interface FileRoutesById {
@@ -58,19 +66,21 @@ export interface FileRoutesById {
   "/_sidebar": typeof SidebarRouteRouteWithChildren
   "/spaces": typeof SpacesRoute
   "/_sidebar/chat": typeof SidebarChatRoute
+  "/_sidebar/dashboard": typeof SidebarDashboardRoute
   "/_sidebar/templates": typeof SidebarTemplatesRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: "/" | "/spaces" | "/chat" | "/templates"
+  fullPaths: "/" | "/spaces" | "/chat" | "/dashboard" | "/templates"
   fileRoutesByTo: FileRoutesByTo
-  to: "/" | "/spaces" | "/chat" | "/templates"
+  to: "/" | "/spaces" | "/chat" | "/dashboard" | "/templates"
   id:
     | "__root__"
     | "/"
     | "/_sidebar"
     | "/spaces"
     | "/_sidebar/chat"
+    | "/_sidebar/dashboard"
     | "/_sidebar/templates"
   fileRoutesById: FileRoutesById
 }
@@ -110,6 +120,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof SidebarTemplatesRouteImport
       parentRoute: typeof SidebarRouteRoute
     }
+    "/_sidebar/dashboard": {
+      id: "/_sidebar/dashboard"
+      path: "/dashboard"
+      fullPath: "/dashboard"
+      preLoaderRoute: typeof SidebarDashboardRouteImport
+      parentRoute: typeof SidebarRouteRoute
+    }
     "/_sidebar/chat": {
       id: "/_sidebar/chat"
       path: "/chat"
@@ -122,11 +139,13 @@ declare module "@tanstack/react-router" {
 
 interface SidebarRouteRouteChildren {
   SidebarChatRoute: typeof SidebarChatRoute
+  SidebarDashboardRoute: typeof SidebarDashboardRoute
   SidebarTemplatesRoute: typeof SidebarTemplatesRoute
 }
 
 const SidebarRouteRouteChildren: SidebarRouteRouteChildren = {
   SidebarChatRoute: SidebarChatRoute,
+  SidebarDashboardRoute: SidebarDashboardRoute,
   SidebarTemplatesRoute: SidebarTemplatesRoute,
 }
 

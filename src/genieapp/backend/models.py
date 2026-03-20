@@ -60,6 +60,7 @@ class ChatMessageIn(BaseModel):
     question: str
     conversation_id: str | None = None
     space_id: str | None = None
+    ephemeral: bool = False
 
 
 class ChartSuggestion(BaseModel):
@@ -257,3 +258,25 @@ class UserPreferencesIn(BaseModel):
 
     default_template: str | None = None
     preferences: dict | None = None
+
+
+# --- Dashboard ---
+
+class DashboardPanel(BaseModel):
+    """A single dashboard panel with pre-computed data."""
+
+    id: str
+    title: str
+    chart_type: str  # kpi, bar, line, pie, area
+    sql: str = ""
+    columns: list[str] = []
+    data: list[dict] = []
+    position: int = 0
+
+
+class DashboardOut(BaseModel):
+    """Dashboard response with pre-computed panels."""
+
+    panels: list[DashboardPanel] = []
+    available: bool = True
+    generated_at: str = ""

@@ -33,6 +33,7 @@ const STATUS_LABELS: Record<string, string> = {
 interface UseChatFlowOptions {
   spaceId?: string;
   initialConversationId?: string;
+  ephemeral?: boolean;
 }
 
 /**
@@ -46,7 +47,7 @@ function syncSearchParam(key: string, value: string): void {
 }
 
 export function useChatFlow(options: UseChatFlowOptions = {}) {
-  const { spaceId, initialConversationId } = options;
+  const { spaceId, initialConversationId, ephemeral } = options;
   const startChat = useStartChat();
   const [messages, setMessages] = useState<Message[]>([]);
   const [conversationId, setConversationId] = useState<string | undefined>(
@@ -63,8 +64,11 @@ export function useChatFlow(options: UseChatFlowOptions = {}) {
     }
   }, [initialConversationId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Load conversation messages when navigating from history
-  const { data: loadedMessages } = useConversationMessages(conversationId, spaceId);
+  // Load conversation messages when navigating from history (skip for ephemeral)
+  const { data: loadedMessages } = useConversationMessages(
+    ephemeral ? undefined : conversationId,
+    spaceId,
+  );
   const [loadedConvId, setLoadedConvId] = useState<string | undefined>();
 
   useEffect(() => {
@@ -105,14 +109,16 @@ export function useChatFlow(options: UseChatFlowOptions = {}) {
           });
 
           if (status.is_complete) {
-            const result = await getChatResult(convId, msgId, spaceId);
+            const result = await getChatResult(convId, msgId, spaceId, ephemeral);
             setConversationId(result.conversation_id || undefined);
-            // Sync conversationId + spaceId to URL so refresh works
-            if (result.conversation_id) {
-              syncSearchParam("conversationId", result.conversation_id);
-            }
-            if (spaceId) {
-              syncSearchParam("spaceId", spaceId);
+            // Sync conversationId + spaceId to URL so refresh works (skip for ephemeral)
+            if (!ephemeral) {
+              if (result.conversation_id) {
+                syncSearchParam("conversationId", result.conversation_id);
+              }
+              if (spaceId) {
+                syncSearchParam("spaceId", spaceId);
+              }
             }
             setMessages((prev) => {
               const updated = [...prev];
@@ -162,7 +168,7 @@ export function useChatFlow(options: UseChatFlowOptions = {}) {
         return updated;
       });
     },
-    [spaceId],
+    [spaceId, ephemeral],
   );
 
   const sendMessage = useCallback(
@@ -174,18 +180,20 @@ export function useChatFlow(options: UseChatFlowOptions = {}) {
       setMessages((prev) => [...prev, { question, statusText: "Submitting..." }]);
 
       startChat.mutate(
-        { question, conversationId, spaceId },
+        { question, conversationId, spaceId, ephemeral },
         {
           onSuccess: async (startResult) => {
             const convId = startResult.conversation_id;
             const msgId = startResult.message_id;
             setConversationId(convId || undefined);
-            // Sync conversationId + spaceId to URL immediately
-            if (convId) {
-              syncSearchParam("conversationId", convId);
-            }
-            if (spaceId) {
-              syncSearchParam("spaceId", spaceId);
+            // Sync conversationId + spaceId to URL immediately (skip for ephemeral)
+            if (!ephemeral) {
+              if (convId) {
+                syncSearchParam("conversationId", convId);
+              }
+              if (spaceId) {
+                syncSearchParam("spaceId", spaceId);
+              }
             }
             await pollAndFetchResult(convId, msgId, msgIndex);
             setIsSending(false);
@@ -220,7 +228,7 @@ export function useChatFlow(options: UseChatFlowOptions = {}) {
         },
       );
     },
-    [isSending, messages.length, conversationId, spaceId, startChat, pollAndFetchResult],
+    [isSending, messages.length, conversationId, spaceId, ephemeral, startChat, pollAndFetchResult],
   );
 
   return {

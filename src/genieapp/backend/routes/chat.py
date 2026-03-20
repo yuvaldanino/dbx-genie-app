@@ -144,7 +144,7 @@ def send_chat_message(
     )
     conv_id = result["conversation_id"]
     msg_id = result.get("message_id", "")
-    if conv_id:
+    if conv_id and not msg.ephemeral:
         _persist_message_start(ws, conv_id, msg_id, space_id, user_id, msg.question)
         _persist_message_result(ws, conv_id, msg_id, result)
 
@@ -170,7 +170,7 @@ def start_chat(
     )
     conv_id = result["conversation_id"]
     msg_id = result["message_id"]
-    if conv_id:
+    if conv_id and not msg.ephemeral:
         _persist_message_start(ws, conv_id, msg_id, space_id, user_id, msg.question)
 
     return ChatStartOut(
@@ -214,6 +214,7 @@ def get_chat_result(
     msg_id: str,
     ws: Dependencies.Client,
     space_id: str | None = None,
+    ephemeral: bool = False,
 ) -> ChatMessageOut:
     """Fetch full result for a completed message."""
     sid = _resolve_space_id(space_id)
@@ -223,7 +224,8 @@ def get_chat_result(
         conversation_id=conv_id,
         message_id=msg_id,
     )
-    _persist_message_result(ws, conv_id, msg_id, result)
+    if not ephemeral:
+        _persist_message_result(ws, conv_id, msg_id, result)
     return _result_to_response(result)
 
 

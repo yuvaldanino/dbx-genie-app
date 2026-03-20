@@ -173,6 +173,13 @@ def ensure_tables(ws: WorkspaceClient) -> None:
         except (RuntimeError, Exception):
             pass  # Column already exists
 
+    # Add dashboard_json column to sessions and spaces tables
+    for table in [_SESSIONS_TABLE, _SPACES_TABLE]:
+        try:
+            run_sql(ws, f"ALTER TABLE {table} ADD COLUMN dashboard_json STRING")
+        except (RuntimeError, Exception):
+            pass  # Column already exists
+
 
 # ---------------------------------------------------------------------------
 # Users
@@ -580,3 +587,43 @@ def soft_delete_space(
             WHERE space_id = '{_escape(space_id)}'""",
     )
     _space_list_cache.clear()
+
+
+# ---------------------------------------------------------------------------
+# Dashboard
+# ---------------------------------------------------------------------------
+
+def get_dashboard_data(
+    ws: WorkspaceClient,
+    space_id: str,
+) -> dict | None:
+    """Get dashboard JSON for a space. Checks spaces table first, then sessions."""
+    safe_id = _escape(space_id)
+
+    # Try spaces table first
+    result = run_sql(
+        ws,
+        f"SELECT dashboard_json FROM {_SPACES_TABLE} WHERE space_id = '{safe_id}' AND is_active = true LIMIT 1",
+        raise_on_error=False,
+    )
+    rows = parse_sql_rows(result)
+    if rows and rows[0].get("dashboard_json"):
+        try:
+            return json.loads(rows[0]["dashboard_json"])
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    # Fallback to sessions table
+    result = run_sql(
+        ws,
+        f"SELECT dashboard_json FROM {_SESSIONS_TABLE} WHERE space_id = '{safe_id}' LIMIT 1",
+        raise_on_error=False,
+    )
+    rows = parse_sql_rows(result)
+    if rows and rows[0].get("dashboard_json"):
+        try:
+            return json.loads(rows[0]["dashboard_json"])
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    return None

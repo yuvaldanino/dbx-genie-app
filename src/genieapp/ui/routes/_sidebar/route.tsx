@@ -23,6 +23,7 @@ import { BrandThemeInjector } from "@/components/apx/BrandThemeInjector";
 import {
   Home,
   MessageSquare,
+  LayoutDashboard,
   Database,
   ChevronDown,
   ChevronRight,
@@ -45,8 +46,10 @@ const DEFAULT_WIDTH = 260;
 function SidebarLayout() {
   // Extract spaceId from child route search params
   const matches = useMatches();
-  const chatMatch = matches.find((m) => m.routeId === "/_sidebar/chat");
-  const spaceId = (chatMatch?.search as { spaceId?: string })?.spaceId;
+  const childMatch = matches.find(
+    (m) => m.routeId === "/_sidebar/chat" || m.routeId === "/_sidebar/dashboard",
+  );
+  const spaceId = (childMatch?.search as { spaceId?: string })?.spaceId;
 
   // Use space-specific config when spaceId is present
   const { data: defaultConfig } = useAppConfig();
@@ -142,6 +145,12 @@ function SidebarLayout() {
             <Button variant="ghost" className="w-full justify-start gap-2">
               <MessageSquare className="h-4 w-4 text-primary" />
               Chat
+            </Button>
+          </Link>
+          <Link to="/dashboard" search={spaceId ? { spaceId } : {}}>
+            <Button variant="ghost" className="w-full justify-start gap-2">
+              <LayoutDashboard className="h-4 w-4 text-primary" />
+              Dashboard
             </Button>
           </Link>
         </nav>

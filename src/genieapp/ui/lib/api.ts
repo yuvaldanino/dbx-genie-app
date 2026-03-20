@@ -156,11 +156,13 @@ export async function startChat(
   question: string,
   conversationId?: string,
   spaceId?: string,
+  ephemeral?: boolean,
 ): Promise<ChatStartOut> {
   const { data } = await api.post<ChatStartOut>("/chat/start", {
     question,
     conversation_id: conversationId || null,
     space_id: spaceId || null,
+    ...(ephemeral && { ephemeral: true }),
   });
   return data;
 }
@@ -181,10 +183,14 @@ export async function getChatResult(
   conversationId: string,
   messageId: string,
   spaceId?: string,
+  ephemeral?: boolean,
 ): Promise<ChatMessageOut> {
+  const params: Record<string, string> = {};
+  if (spaceId) params.space_id = spaceId;
+  if (ephemeral) params.ephemeral = "true";
   const { data } = await api.get<ChatMessageOut>(
     `/chat/${conversationId}/${messageId}/result`,
-    { params: spaceId ? { space_id: spaceId } : {} },
+    { params },
   );
   return data;
 }
@@ -312,11 +318,13 @@ export function useStartChat() {
       question,
       conversationId,
       spaceId,
+      ephemeral,
     }: {
       question: string;
       conversationId?: string;
       spaceId?: string;
-    }) => startChat(question, conversationId, spaceId),
+      ephemeral?: boolean;
+    }) => startChat(question, conversationId, spaceId, ephemeral),
   });
 }
 
@@ -533,6 +541,40 @@ export async function createByogSpace(params: {
 export function useCreateByogSpace() {
   return useMutation({
     mutationFn: createByogSpace,
+  });
+}
+
+// --- Dashboard ---
+
+export interface DashboardPanel {
+  id: string;
+  title: string;
+  chart_type: "kpi" | "bar" | "line" | "pie" | "area";
+  sql: string;
+  columns: string[];
+  data: Record<string, string | number | null>[];
+  position: number;
+}
+
+export interface DashboardOut {
+  panels: DashboardPanel[];
+  available: boolean;
+  generated_at: string;
+}
+
+export async function getSpaceDashboard(
+  spaceId: string,
+): Promise<DashboardOut> {
+  const { data } = await api.get<DashboardOut>(`/spaces/${spaceId}/dashboard`);
+  return data;
+}
+
+export function useSpaceDashboard(spaceId: string | undefined) {
+  return useQuery({
+    queryKey: ["spaceDashboard", spaceId],
+    queryFn: () => getSpaceDashboard(spaceId!),
+    enabled: !!spaceId,
+    staleTime: Infinity,
   });
 }
 

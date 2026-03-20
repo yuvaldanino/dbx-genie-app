@@ -15,6 +15,7 @@ from ..db import (
     _SESSIONS_TABLE,
     _escape,
     create_space as db_create_space,
+    get_dashboard_data,
     get_space,
     list_user_spaces,
     parse_sql_rows,
@@ -28,6 +29,8 @@ from ..models import (
     CreateByogSpaceIn,
     CreateSpaceIn,
     CreateSpaceOut,
+    DashboardOut,
+    DashboardPanel,
     JobStatusOut,
     RegisterSpaceIn,
     SpaceOut,
@@ -383,6 +386,38 @@ def get_space_config(space_id: str, ws: Dependencies.Client) -> AppConfigOut:
             for t in state.tables
         ],
         template_id="simple",
+    )
+
+
+# --- Dashboard ---
+
+@router.get(
+    "/spaces/{space_id}/dashboard",
+    response_model=DashboardOut,
+    operation_id="getSpaceDashboard",
+)
+def get_space_dashboard(space_id: str, ws: Dependencies.Client) -> DashboardOut:
+    """Get pre-computed dashboard data for a space."""
+    data = get_dashboard_data(ws, space_id)
+    if not data:
+        return DashboardOut(panels=[], available=False)
+
+    panels = []
+    for p in data.get("panels", []):
+        panels.append(DashboardPanel(
+            id=p.get("id", ""),
+            title=p.get("title", ""),
+            chart_type=p.get("chart_type", "bar"),
+            sql=p.get("sql", ""),
+            columns=p.get("columns", []),
+            data=p.get("data", []),
+            position=p.get("position", 0),
+        ))
+
+    return DashboardOut(
+        panels=sorted(panels, key=lambda p: p.position),
+        available=True,
+        generated_at=data.get("generated_at", ""),
     )
 
 

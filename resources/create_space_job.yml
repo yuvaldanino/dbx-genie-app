@@ -37,3 +37,13 @@ resources:
               schema: ${var.schema}
               company_name: ${var.company_name}
               warehouse_id: ${var.warehouse_id}
+
+        - task_key: create_dashboard
+          depends_on:
+            - task_key: create_space
+          notebook_task:
+            notebook_path: ../scripts/pipeline/04_create_dashboard.ipynb
+            base_parameters:
+              catalog: ${var.catalog}
+              schema: ${var.schema}
+              company_name: ${var.company_name}

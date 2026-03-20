@@ -89,8 +89,8 @@ export function GenieDrawer({ open, onClose, spaceId, config }: GenieDrawerProps
                 )}
 
                 {msg.response && (
-                  <Card className="overflow-hidden border-accent/30 bg-accent/5">
-                    <div className="p-3 space-y-2">
+                  <Card className="min-w-0 overflow-hidden border-accent/30 bg-accent/5">
+                    <div className="p-3 space-y-2 overflow-hidden break-words">
                       {msg.response.error && (
                         <p className="text-xs text-destructive">{msg.response.error}</p>
                       )}

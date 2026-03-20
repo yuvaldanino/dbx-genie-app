@@ -143,7 +143,7 @@ export function ChartRenderer({ suggestion, data, columns }: ChartRendererProps)
   }
 
   return (
-    <div className="w-full space-y-2" id="chart-container">
+    <div className="w-full space-y-2 overflow-hidden" id="chart-container">
       <ChartToolbar
         chartType={chartType}
         onTypeChange={setChartType}
@@ -193,15 +193,15 @@ export function ChartRenderer({ suggestion, data, columns }: ChartRendererProps)
               nameKey={xAxis}
               cx="50%"
               cy="50%"
-              outerRadius={100}
-              label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+              outerRadius={80}
+              label={({ name, percent }) => `${String(name).length > 15 ? String(name).slice(0, 15) + "…" : name} ${(percent * 100).toFixed(0)}%`}
             >
               {chartData.map((_, index) => (
                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
               ))}
             </Pie>
             <Tooltip />
-            <Legend />
+            <Legend wrapperStyle={{ fontSize: 11, maxWidth: "100%", overflow: "hidden" }} layout="horizontal" align="center" />
           </PieChart>
         ) : (
           <BarChart data={chartData}>
@@ -257,10 +257,10 @@ function ChartToolbar({
       </div>
 
       {/* Axis selectors */}
-      <div className="flex items-center gap-1.5 ml-auto">
+      <div className="flex items-center gap-1.5 ml-auto min-w-0">
         <label className="text-muted-foreground">X:</label>
         <select
-          className="h-7 px-1.5 rounded border bg-background text-xs"
+          className="h-7 px-1.5 rounded border bg-background text-xs max-w-[120px] truncate"
           value={xAxis}
           onChange={(e) => onXChange(e.target.value)}
         >
@@ -271,7 +271,7 @@ function ChartToolbar({
 
         <label className="text-muted-foreground ml-1">Y:</label>
         <select
-          className="h-7 px-1.5 rounded border bg-background text-xs"
+          className="h-7 px-1.5 rounded border bg-background text-xs max-w-[120px] truncate"
           value={yAxis}
           onChange={(e) => onYChange(e.target.value)}
         >

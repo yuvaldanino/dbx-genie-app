@@ -14,7 +14,7 @@ from .core import logger
 # --- Constants ---
 CATALOG = "yd_launchpad_final_classic_catalog"
 SCHEMA = "genie_app"
-WAREHOUSE_ID = "551addcb4415adb7"
+WAREHOUSE_ID = "fc62b388f737b2d3"
 
 _USERS_TABLE = f"`{CATALOG}`.`{SCHEMA}`.`users`"
 _SPACES_TABLE = f"`{CATALOG}`.`{SCHEMA}`.`spaces`"

@@ -4,7 +4,7 @@
 
 import { useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useSpaces, useCreateByogSpace } from "@/lib/api";
+import { useSpaces, useCreateByogSpace, type SpaceOut } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -35,6 +35,46 @@ const TEMPLATE_OPTIONS = [
   { id: "command", label: "Command Palette", icon: Command },
   { id: "workspace", label: "Query Workspace", icon: PanelLeftClose },
 ] as const;
+
+function SpaceCard({ space, navigate }: { space: SpaceOut; navigate: ReturnType<typeof useNavigate> }) {
+  return (
+    <Card
+      className="bg-card/80 backdrop-blur-sm cursor-pointer hover:border-primary/50 transition-colors"
+      onClick={() => navigate({ to: "/chat", search: { spaceId: space.space_id } })}
+    >
+      <CardContent className="p-5">
+        <div className="flex items-start gap-4">
+          {space.logo_path ? (
+            <img
+              src={space.logo_path}
+              alt={space.company_name}
+              className="h-12 w-12 object-contain rounded"
+            />
+          ) : (
+            <div
+              className="h-12 w-12 rounded flex items-center justify-center text-white font-bold text-lg shrink-0"
+              style={{ backgroundColor: space.primary_color }}
+            >
+              {space.company_name.charAt(0)}
+            </div>
+          )}
+          <div className="flex-1 min-w-0">
+            <h3 className="font-semibold truncate">
+              {space.company_name}
+            </h3>
+            <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+              {space.description || "No description"}
+            </p>
+            <div className="flex items-center gap-1 mt-3 text-xs text-muted-foreground">
+              <MessageSquare className="h-3 w-3" />
+              <span>Open Chat</span>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 function SpacesPage() {
   const navigate = useNavigate();
@@ -264,46 +304,44 @@ function SpacesPage() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {spaces.map((space) => (
-              <Card
-                key={space.space_id}
-                className="bg-card/80 backdrop-blur-sm cursor-pointer hover:border-primary/50 transition-colors"
-                onClick={() => navigate({ to: "/chat", search: { spaceId: space.space_id } })}
-              >
-                <CardContent className="p-5">
-                  <div className="flex items-start gap-4">
-                    {space.logo_path ? (
-                      <img
-                        src={space.logo_path}
-                        alt={space.company_name}
-                        className="h-12 w-12 object-contain rounded"
-                      />
-                    ) : (
-                      <div
-                        className="h-12 w-12 rounded flex items-center justify-center text-white font-bold text-lg shrink-0"
-                        style={{ backgroundColor: space.primary_color }}
-                      >
-                        {space.company_name.charAt(0)}
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold truncate">
-                        {space.company_name}
-                      </h3>
-                      <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
-                        {space.description || "No description"}
-                      </p>
-                      <div className="flex items-center gap-1 mt-3 text-xs text-muted-foreground">
-                        <MessageSquare className="h-3 w-3" />
-                        <span>Open Chat</span>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          <>
+            {/* My Spaces — user-owned (BYOG + pipeline-created) */}
+            {spaces.filter((s) => s.space_type !== "shared").length > 0 && (
+              <div className="mb-8">
+                <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-primary" />
+                  My Spaces
+                </h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {spaces
+                    .filter((s) => s.space_type !== "shared")
+                    .map((space) => (
+                      <SpaceCard key={space.space_id} space={space} navigate={navigate} />
+                    ))}
+                </div>
+              </div>
+            )}
+
+            {/* Shared Spaces — premade demos from sessions table */}
+            {spaces.filter((s) => s.space_type === "shared").length > 0 && (
+              <div>
+                <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                  <Building2 className="h-4 w-4 text-muted-foreground" />
+                  Shared Spaces
+                </h2>
+                <p className="text-sm text-muted-foreground mb-3">
+                  Premade demo spaces available to everyone.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {spaces
+                    .filter((s) => s.space_type === "shared")
+                    .map((space) => (
+                      <SpaceCard key={space.space_id} space={space} navigate={navigate} />
+                    ))}
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

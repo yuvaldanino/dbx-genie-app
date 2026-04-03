@@ -79,10 +79,20 @@ RULES:
 4. Use foreign keys ("fk" provider) to create relationships between tables.
 5. Include at least one date column and one numeric/financial column per table.
 6. Use "random_element" for categorical columns with domain-specific values (5-10 realistic options).
+   Choose values specific to the business domain. For a coffee chain: drink sizes should be ["Tall", "Grande", "Venti"],
+   NOT generic ["A", "B", "C"]. For status columns, use realistic business statuses like ["Pending", "Shipped", "Delivered"].
+   You MAY include a "weights" list for non-uniform distributions, e.g. {{"elements": ["Active", "Inactive"], "weights": [80, 20]}}.
 7. Make column names snake_case and table names snake_case plural (e.g., "shipments", "warehouses").
 8. Add meaningful table comments and column comments that describe what each represents.
+   Column comments are CRITICAL — they are passed directly to the AI query engine.
 9. Include sample_questions (5-7) that a business user would ask about this data.
+   Questions MUST reference actual column names from the schema, e.g. "What is the total revenue by region?"
+   not "Tell me about sales". Each question should be answerable with a single SQL query.
 10. Tables should be ordered so that referenced tables come before tables that reference them.
+11. For numeric columns (pyfloat/random_int), set REALISTIC min/max ranges for the domain.
+    E.g., coffee drink price: min_value=3.50, max_value=8.50. Shipping weight: min=0.5, max=50.
+    Do NOT use default ranges like 0-1000 — this produces unrealistic data.
+12. Each table should have row_count between 500-2000 for realistic aggregation results.
 
 {SUPPORTED_PROVIDERS}
 

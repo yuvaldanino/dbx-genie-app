@@ -152,6 +152,104 @@ def create_tables(
     return tables_info
 
 
+def build_genie_instructions(
+    schema_def: dict[str, Any],
+    company_description: str,
+) -> str:
+    """Build rich instructions for a Genie Space from the schema definition.
+
+    Includes a data dictionary with column types, comments, FK relationships,
+    and query tips so Genie understands the data semantics.
+
+    Args:
+        schema_def: LLM-designed schema with tables, columns, comments.
+        company_description: Free-text company description.
+
+    Returns:
+        Markdown-formatted instruction string for Genie.
+    """
+    lines = [company_description, "", "## Data Dictionary"]
+
+    fk_relationships: list[str] = []
+    query_tips: list[str] = []
+    categorical_hints: list[str] = []
+
+    for table_def in schema_def.get("tables", []):
+        table_name = table_def["name"]
+        table_comment = table_def.get("comment", "")
+        header = f"### Table: {table_name}"
+        if table_comment:
+            header += f" — {table_comment}"
+        lines.append(header)
+        lines.append("| Column | Type | Description |")
+        lines.append("|--------|------|-------------|")
+
+        for col in table_def.get("columns", []):
+            col_name = col["name"]
+            faker = col.get("faker", "")
+            col_comment = col.get("comment", "")
+            args = col.get("args", {})
+
+            # Determine display type from faker provider
+            sql_type = get_sql_type(faker) if faker else "STRING"
+
+            # Build description with extra context
+            desc_parts = [col_comment] if col_comment else []
+
+            if faker == "fk":
+                ref = args.get("references", "")
+                if ref:
+                    fk_relationships.append(f"- {table_name}.{col_name} → {ref}")
+                    desc_parts.append(f"FK → {ref}")
+
+            if faker == "random_element":
+                elements = args.get("elements", [])
+                if elements:
+                    vals = ", ".join(str(e) for e in elements[:8])
+                    desc_parts.append(f"Values: {vals}")
+                    categorical_hints.append(
+                        f"- {table_name}.{col_name}: {vals}"
+                    )
+
+            desc = ". ".join(desc_parts) if desc_parts else ""
+            lines.append(f"| {col_name} | {sql_type} | {desc} |")
+
+        lines.append("")
+
+    if fk_relationships:
+        lines.append("## Relationships")
+        lines.extend(fk_relationships)
+        lines.append("")
+
+    if categorical_hints:
+        lines.append("## Categorical Values")
+        lines.extend(categorical_hints)
+        lines.append("")
+
+    # Add query tips based on schema structure
+    lines.append("## Query Tips")
+    for table_def in schema_def.get("tables", []):
+        table_name = table_def["name"]
+        for col in table_def.get("columns", []):
+            faker = col.get("faker", "")
+            col_name = col["name"]
+            if faker == "pyfloat" and any(
+                kw in col_name for kw in ("amount", "price", "revenue", "total", "cost", "salary")
+            ):
+                query_tips.append(f"- For monetary aggregation: SUM({col_name}) or AVG({col_name}) from {table_name}")
+            elif faker in ("date_between", "date_this_year"):
+                query_tips.append(f"- For time trends: GROUP BY {col_name} from {table_name}")
+
+    if query_tips:
+        lines.extend(query_tips)
+    else:
+        lines.append("- Use aggregate functions (SUM, COUNT, AVG) for numeric columns")
+        lines.append("- Use GROUP BY on categorical or date columns for breakdowns")
+    lines.append("")
+
+    return "\n".join(lines)
+
+
 def create_genie_space(
     ws: WorkspaceClient,
     warehouse_id: str,
@@ -159,6 +257,7 @@ def create_genie_space(
     description: str,
     table_identifiers: list[str],
     sample_questions: list[str],
+    schema_def: dict[str, Any] | None = None,
 ) -> str:
     """Create a Databricks Genie Space via REST API.
 
@@ -169,11 +268,18 @@ def create_genie_space(
         description: Company description.
         table_identifiers: List of full table names (catalog.schema.table).
         sample_questions: Sample questions for the space.
+        schema_def: Optional LLM schema for rich instructions.
 
     Returns:
         The space_id of the created Genie Space.
     """
     logger.info("Creating Genie Space: %s", display_name)
+
+    # Build rich instructions if schema_def is available
+    if schema_def:
+        instruction_text = build_genie_instructions(schema_def, description)
+    else:
+        instruction_text = description
 
     # Get current user for parent_path
     me = ws.current_user.me()
@@ -195,7 +301,7 @@ def create_genie_space(
         },
         "instructions": {
             "text_instructions": [
-                {"id": uuid.uuid4().hex, "content": [description]},
+                {"id": uuid.uuid4().hex, "content": [instruction_text]},
             ],
         },
     }

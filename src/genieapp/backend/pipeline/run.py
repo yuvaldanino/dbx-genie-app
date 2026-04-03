@@ -109,7 +109,7 @@ def run_pipeline(
 
     # Step 2: Generate data with Faker
     logger.info("=== Step 2: Generating data ===")
-    table_data = generate_all_tables(schema_def)
+    table_data = generate_all_tables(schema_def, seed=company_name)
 
     # Step 3: Create UC schema and tables
     logger.info("=== Step 3: Creating tables in Databricks ===")
@@ -125,7 +125,7 @@ def run_pipeline(
     logger.info("=== Step 4: Creating Genie Space ===")
     space_id = create_genie_space(
         ws, warehouse_id, display_name, company_description,
-        table_identifiers, sample_questions,
+        table_identifiers, sample_questions, schema_def=schema_def,
     )
 
     # Step 5: Save session metadata

@@ -6,22 +6,33 @@ import csv
 import io
 import json
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from ..core import Dependencies
-from ..db import get_conversation_messages
+from ..db import get_conversation, get_conversation_messages
 from ..models import ExportRequest
 
 router = APIRouter()
+
+
+def _get_user_id(request: Request) -> str:
+    """Extract user_id from Databricks headers, fallback to 'anonymous'."""
+    return request.headers.get("X-Forwarded-User", "anonymous")
 
 
 @router.post("/export", operation_id="exportConversation")
 def export_conversation(
     req: ExportRequest,
     ws: Dependencies.Client,
+    request: Request,
 ) -> StreamingResponse:
     """Export conversation data as JSON or CSV."""
+    # Verify conversation belongs to the requesting user
+    user_id = _get_user_id(request)
+    conv = get_conversation(ws, req.conversation_id)
+    if conv and conv.get("user_id") and conv["user_id"] != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to export this conversation")
     rows = get_conversation_messages(ws, req.conversation_id)
 
     if req.format == "json":

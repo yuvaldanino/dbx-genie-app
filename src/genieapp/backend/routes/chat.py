@@ -281,9 +281,16 @@ def list_conversations_endpoint(
 def get_conversation_messages_endpoint(
     conv_id: str,
     ws: Dependencies.Client,
+    request: Request,
     space_id: str | None = None,
 ) -> list[ConversationMessageOut]:
     """Get all messages in a conversation, re-fetching data from Genie API."""
+    # Verify conversation belongs to the requesting user
+    user_id = _get_user_id(request)
+    conv = get_conversation(ws, conv_id)
+    if conv and conv.get("user_id") and conv["user_id"] != user_id:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=403, detail="Not authorized to access this conversation")
     rows = get_conversation_messages(ws, conv_id)
 
     # Resolve space_id from conversation record if not provided

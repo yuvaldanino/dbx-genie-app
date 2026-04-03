@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import random
 from typing import Any
 
 from faker import Faker
@@ -10,7 +11,6 @@ from faker import Faker
 logger = logging.getLogger(__name__)
 
 fake = Faker()
-Faker.seed(42)
 
 
 # SQL type mapping for each Faker provider
@@ -76,12 +76,17 @@ def _generate_value(
 
         ref_data = generated_tables.get(ref_table, [])
         if ref_data:
-            row = fake.random_element(ref_data)
+            # Power-law distribution: some parents get more children (realistic)
+            weights = [1.0 / (i + 1) ** 0.5 for i in range(len(ref_data))]
+            row = random.choices(ref_data, weights=weights, k=1)[0]
             return row.get(ref_col, 1)
         return fake.random_int(min=1, max=100)
 
     if provider == "random_element":
         elements = args.get("elements", ["A", "B", "C"])
+        weights = args.get("weights")
+        if weights and len(weights) == len(elements):
+            return random.choices(elements, weights=weights, k=1)[0]
         return fake.random_element(elements)
 
     if provider == "random_int":
@@ -170,15 +175,22 @@ def generate_table_data(
 
 def generate_all_tables(
     schema: dict[str, Any],
+    seed: int | str | None = None,
 ) -> dict[str, list[dict]]:
     """Generate data for all tables in the schema, respecting FK ordering.
 
     Args:
         schema: Full schema dict with "tables" list.
+        seed: Optional seed for reproducibility. Uses hash of value if string.
 
     Returns:
         Dict mapping table_name → list of row dicts.
     """
+    if seed is not None:
+        seed_val = hash(seed) % (2**31) if isinstance(seed, str) else seed
+        Faker.seed(seed_val)
+        random.seed(seed_val)
+
     generated: dict[str, list[dict]] = {}
 
     for table_def in schema["tables"]:

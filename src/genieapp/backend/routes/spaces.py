@@ -128,6 +128,7 @@ def list_spaces(ws: Dependencies.Client, request: Request) -> list[SpaceOut]:
                     secondary_color=r.get("secondary_color") or "#ea4335",
                     accent_color=r.get("accent_color") or "",
                     chart_colors=json.loads(r["chart_colors_json"]) if r.get("chart_colors_json") else [],
+                    space_type="shared",
                     created_at=str(r.get("created_at") or ""),
                 ))
     except Exception as e:
@@ -257,11 +258,19 @@ def update_template(
     space_id: str,
     req: UpdateTemplateIn,
     ws: Dependencies.Client,
+    request: Request,
 ) -> dict[str, bool]:
     """Update the UI template for a space."""
     valid_templates = {"simple", "widget", "dashboard", "command", "workspace"}
     if req.template_id not in valid_templates:
         raise HTTPException(status_code=400, detail=f"Invalid template_id. Must be one of: {valid_templates}")
+    # Verify ownership (skip for shared/session spaces that have no owner)
+    space = get_space(ws, space_id)
+    if space:
+        owner = space.get("owner_user_id", "")
+        user_id = _get_user_id(request)
+        if owner and owner != user_id:
+            raise HTTPException(status_code=403, detail="Not authorized to modify this space")
     update_space_template(ws, space_id, req.template_id)
     return {"success": True}
 
@@ -272,8 +281,16 @@ def update_template(
 def delete_space(
     space_id: str,
     ws: Dependencies.Client,
+    request: Request,
 ) -> dict[str, bool]:
     """Soft-delete a space (set is_active=false)."""
+    # Verify ownership
+    space = get_space(ws, space_id)
+    if space:
+        owner = space.get("owner_user_id", "")
+        user_id = _get_user_id(request)
+        if owner and owner != user_id:
+            raise HTTPException(status_code=403, detail="Not authorized to delete this space")
     soft_delete_space(ws, space_id)
     return {"success": True}
 

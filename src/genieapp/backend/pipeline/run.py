@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 from typing import Any
@@ -11,6 +12,7 @@ from databricks.sdk import WorkspaceClient
 from .data_generator import generate_all_tables
 from .schema_designer import design_schema
 from .theme_generator import generate_theme
+from ..db import create_space as db_create_space
 from .space_creator import (
     create_genie_space,
     create_schema,
@@ -145,6 +147,31 @@ def run_pipeline(
         accent_color=accent_color,
         chart_colors=chart_colors,
     )
+
+    # Step 5b: Register space in spaces table with ownership
+    logger.info("=== Step 5b: Registering space with ownership ===")
+    try:
+        owner_id = ws.current_user.me().user_name or ""
+        db_create_space(
+            ws,
+            space_id=space_id,
+            owner_user_id=owner_id,
+            company_name=company_name,
+            description=company_description,
+            schema_name=schema_name,
+            space_type="generated",
+            logo_volume_path=logo_path,
+            primary_color=primary_color,
+            secondary_color=secondary_color,
+            accent_color=accent_color,
+            chart_colors=chart_colors,
+            tables_json=json.dumps(tables_info),
+            sample_questions_json=json.dumps(sample_questions),
+            warehouse_id=warehouse_id,
+        )
+        logger.info("Space registered with owner: %s", owner_id)
+    except Exception:
+        logger.exception("Failed to register space in spaces table")
 
     # Step 6: Write state.json to volume
     logger.info("=== Step 6: Writing state.json ===")

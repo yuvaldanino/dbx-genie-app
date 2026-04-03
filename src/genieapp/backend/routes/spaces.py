@@ -17,6 +17,7 @@ from ..db import (
     create_space as db_create_space,
     get_dashboard_data,
     get_space,
+    list_shared_spaces,
     list_user_spaces,
     parse_sql_rows,
     run_sql,
@@ -93,12 +94,12 @@ def _fallback_spaces() -> list[SpaceOut]:
 
 @router.get("/spaces", response_model=list[SpaceOut], operation_id="listSpaces")
 def list_spaces(ws: Dependencies.Client, request: Request) -> list[SpaceOut]:
-    """List spaces: user-owned from spaces table + legacy sessions table, deduped by space_id."""
+    """List spaces: user-owned + shared from spaces table."""
     user_id = _get_user_id(request)
     seen_ids: set[str] = set()
     spaces: list[SpaceOut] = []
 
-    # User-owned spaces from the spaces table
+    # User-owned spaces
     try:
         rows = list_user_spaces(ws, user_id)
         for r in rows:
@@ -109,30 +110,17 @@ def list_spaces(ws: Dependencies.Client, request: Request) -> list[SpaceOut]:
     except Exception as e:
         logger.warning("list_user_spaces failed: %s", e)
 
-    # Legacy sessions table (pipeline-created spaces before multi-user)
+    # Shared spaces (visible to everyone)
     try:
-        result = run_sql(
-            ws,
-            f"SELECT * FROM {_SESSIONS_TABLE} ORDER BY created_at DESC",
-        )
-        for r in parse_sql_rows(result):
-            sid = r.get("space_id") or ""
-            if sid and sid not in seen_ids:
-                seen_ids.add(sid)
-                spaces.append(SpaceOut(
-                    space_id=sid,
-                    company_name=r.get("company_name") or "",
-                    description=r.get("description") or "",
-                    logo_path=r.get("logo_path") or "",
-                    primary_color=r.get("primary_color") or "#1a73e8",
-                    secondary_color=r.get("secondary_color") or "#ea4335",
-                    accent_color=r.get("accent_color") or "",
-                    chart_colors=json.loads(r["chart_colors_json"]) if r.get("chart_colors_json") else [],
-                    space_type="shared",
-                    created_at=str(r.get("created_at") or ""),
-                ))
+        shared_rows = list_shared_spaces(ws)
+        for r in shared_rows:
+            out = _row_to_space_out(r)
+            out.space_type = "shared"
+            if out.space_id and out.space_id not in seen_ids:
+                seen_ids.add(out.space_id)
+                spaces.append(out)
     except Exception as e:
-        logger.warning("sessions table fallback failed: %s", e)
+        logger.warning("list_shared_spaces failed: %s", e)
 
     if not spaces:
         return _fallback_spaces()

@@ -528,7 +528,7 @@ def list_user_spaces(
     ws: WorkspaceClient,
     user_id: str,
 ) -> list[dict[str, Any]]:
-    """List active spaces owned by a user."""
+    """List active spaces owned by a user (excludes shared spaces)."""
     cache_key = f"spaces:{user_id}"
     cached = _space_list_cache.get(cache_key)
     if cached is not None:
@@ -537,7 +537,25 @@ def list_user_spaces(
     safe_user = _escape(user_id)
     result = run_sql(
         ws,
-        f"SELECT * FROM {_SPACES_TABLE} WHERE owner_user_id = '{safe_user}' AND is_active = true ORDER BY created_at DESC",
+        f"SELECT * FROM {_SPACES_TABLE} WHERE owner_user_id = '{safe_user}' AND is_active = true AND (space_type IS NULL OR space_type != 'shared') ORDER BY created_at DESC",
+    )
+    rows = parse_sql_rows(result)
+    _space_list_cache[cache_key] = rows
+    return rows
+
+
+def list_shared_spaces(
+    ws: WorkspaceClient,
+) -> list[dict[str, Any]]:
+    """List all shared spaces (visible to everyone)."""
+    cache_key = "spaces:shared"
+    cached = _space_list_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    result = run_sql(
+        ws,
+        f"SELECT * FROM {_SPACES_TABLE} WHERE space_type = 'shared' AND is_active = true ORDER BY created_at DESC",
     )
     rows = parse_sql_rows(result)
     _space_list_cache[cache_key] = rows

@@ -66,9 +66,20 @@ function coerceNumeric(data: Record<string, unknown>[], yAxis: string) {
   }));
 }
 
+const ID_SUFFIXES = ["_id", "_key", "_pk", "_fk", "_code"];
+
+function isIdColumn(col: string): boolean {
+  const lower = col.toLowerCase();
+  if (lower === "id") return true;
+  return ID_SUFFIXES.some((s) => lower.endsWith(s));
+}
+
 function isNumericColumn(data: Record<string, unknown>[], col: string): boolean {
-  const sample = data.slice(0, 10);
-  return sample.some((row) => !isNaN(Number(row[col])) && row[col] !== null && row[col] !== "");
+  if (isIdColumn(col)) return false;
+  const sample = data.slice(0, 10).filter((row) => row[col] !== null && row[col] !== "");
+  if (sample.length === 0) return false;
+  const numericCount = sample.filter((row) => !isNaN(Number(row[col]))).length;
+  return numericCount > sample.length / 2;
 }
 
 export function ChartRenderer({ suggestion, data, columns }: ChartRendererProps) {

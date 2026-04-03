@@ -38,7 +38,13 @@ export function DataTable({ columns, data, className }: DataTableProps) {
             <tr key={i} className="border-b hover:bg-muted/30 transition-colors">
               {columns.map((col) => (
                 <td key={col} className="px-3 py-2 whitespace-nowrap">
-                  {row[col] != null ? String(row[col]) : "—"}
+                  {row[col] != null
+                    ? typeof row[col] === "number"
+                      ? Number.isInteger(row[col]) ? String(row[col]) : (row[col] as number).toFixed(2)
+                      : typeof row[col] === "string" && !isNaN(Number(row[col])) && row[col].includes(".")
+                        ? Number(row[col]).toFixed(2)
+                        : String(row[col])
+                    : "—"}
                 </td>
               ))}
             </tr>

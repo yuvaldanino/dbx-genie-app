@@ -117,7 +117,7 @@ export function MessageBubble({ question, response, onAskQuestion }: MessageBubb
             ) : (
               /* Description */
               response.description && (
-                <div className="text-sm">
+                <div className="text-sm max-w-none">
                   <Markdown components={mdComponents}>{response.description}</Markdown>
                 </div>
               )

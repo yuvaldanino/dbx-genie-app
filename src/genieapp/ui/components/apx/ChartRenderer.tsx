@@ -59,6 +59,23 @@ interface ChartRendererProps {
   columns: string[];
 }
 
+function formatTooltipValue(value: number | string): string {
+  const num = Number(value);
+  if (isNaN(num)) return String(value);
+  if (Number.isInteger(num)) return num.toLocaleString();
+  return num.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
+function formatKpiValue(value: number): string {
+  const abs = Math.abs(value);
+  const sign = value < 0 ? "-" : "";
+  if (abs >= 1_000_000_000) return `${sign}${(abs / 1_000_000_000).toFixed(1)}B`;
+  if (abs >= 1_000_000) return `${sign}${(abs / 1_000_000).toFixed(1)}M`;
+  if (abs >= 1_000) return `${sign}${(abs / 1_000).toFixed(1)}K`;
+  if (abs % 1 !== 0) return value.toFixed(2);
+  return value.toLocaleString();
+}
+
 function coerceNumeric(data: Record<string, unknown>[], yAxis: string) {
   return data.map((row) => ({
     ...row,
@@ -141,12 +158,14 @@ export function ChartRenderer({ suggestion, data, columns }: ChartRendererProps)
           onXChange={setXAxis}
           onYChange={setYAxis}
         />
-        <div className="flex flex-col items-center justify-center py-8">
-          <p className="text-sm text-muted-foreground">{label}</p>
-          <p className="text-5xl font-bold mt-2">
-            {typeof value === "number"
-              ? value.toLocaleString()
-              : String(value ?? "—")}
+        <div className="flex flex-col items-center justify-center py-8 w-full overflow-hidden">
+          <p className="text-sm text-muted-foreground text-center break-words max-w-full">{label}</p>
+          <p className="text-5xl font-bold mt-2 text-center break-all max-w-full">
+            {(() => {
+              const num = Number(value);
+              if (value != null && !isNaN(num)) return formatKpiValue(num);
+              return String(value ?? "—");
+            })()}
           </p>
         </div>
       </div>
@@ -154,7 +173,7 @@ export function ChartRenderer({ suggestion, data, columns }: ChartRendererProps)
   }
 
   return (
-    <div className="w-full space-y-2 overflow-hidden" id="chart-container">
+    <div className="w-full max-w-full space-y-2 overflow-hidden" id="chart-container">
       <ChartToolbar
         chartType={chartType}
         onTypeChange={setChartType}
@@ -174,7 +193,7 @@ export function ChartRenderer({ suggestion, data, columns }: ChartRendererProps)
             <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
             <XAxis dataKey={xAxis} tick={{ fontSize: 12 }} />
             <YAxis tick={{ fontSize: 12 }} />
-            <Tooltip />
+            <Tooltip formatter={(v: number | string) => formatTooltipValue(v)} />
             <Legend />
             <Bar dataKey={yAxis} fill="var(--chart-1)" radius={[4, 4, 0, 0]} />
           </BarChart>
@@ -183,7 +202,7 @@ export function ChartRenderer({ suggestion, data, columns }: ChartRendererProps)
             <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
             <XAxis dataKey={xAxis} tick={{ fontSize: 12 }} />
             <YAxis tick={{ fontSize: 12 }} />
-            <Tooltip />
+            <Tooltip formatter={(v: number | string) => formatTooltipValue(v)} />
             <Legend />
             <Line type="monotone" dataKey={yAxis} stroke="var(--chart-1)" strokeWidth={2} dot={{ r: 3 }} />
           </LineChart>
@@ -192,7 +211,7 @@ export function ChartRenderer({ suggestion, data, columns }: ChartRendererProps)
             <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
             <XAxis dataKey={xAxis} tick={{ fontSize: 12 }} />
             <YAxis tick={{ fontSize: 12 }} />
-            <Tooltip />
+            <Tooltip formatter={(v: number | string) => formatTooltipValue(v)} />
             <Legend />
             <Area type="monotone" dataKey={yAxis} stroke="var(--chart-1)" fill="var(--chart-1)" fillOpacity={0.2} />
           </AreaChart>
@@ -211,7 +230,7 @@ export function ChartRenderer({ suggestion, data, columns }: ChartRendererProps)
                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
               ))}
             </Pie>
-            <Tooltip />
+            <Tooltip formatter={(v: number | string) => formatTooltipValue(v)} />
             <Legend wrapperStyle={{ fontSize: 11, maxWidth: "100%", overflow: "hidden" }} layout="horizontal" align="center" />
           </PieChart>
         ) : (
@@ -219,7 +238,7 @@ export function ChartRenderer({ suggestion, data, columns }: ChartRendererProps)
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey={xAxis} />
             <YAxis />
-            <Tooltip />
+            <Tooltip formatter={(v: number | string) => formatTooltipValue(v)} />
             <Bar dataKey={yAxis} fill="var(--chart-1)" />
           </BarChart>
         )}
@@ -249,9 +268,9 @@ function ChartToolbar({
   onYChange: (col: string) => void;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-2 text-xs">
+    <div className="flex flex-wrap items-center gap-2 text-xs w-full max-w-full overflow-hidden">
       {/* Chart type buttons */}
-      <div className="flex items-center border rounded-md overflow-hidden">
+      <div className="flex items-center border rounded-md overflow-hidden shrink-0">
         {CHART_TYPES.map(({ type, icon: Icon, label }) => (
           <Button
             key={type}
@@ -268,7 +287,7 @@ function ChartToolbar({
       </div>
 
       {/* Axis selectors */}
-      <div className="flex items-center gap-1.5 ml-auto min-w-0">
+      <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
         <label className="text-muted-foreground">X:</label>
         <select
           className="h-7 px-1.5 rounded border bg-background text-xs max-w-[120px] truncate"

@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from "./../routes/__root"
 import { Route as SpacesRouteImport } from "./../routes/spaces"
+import { Route as AdminRouteImport } from "./../routes/admin"
 import { Route as SidebarRouteRouteImport } from "./../routes/_sidebar/route"
 import { Route as IndexRouteImport } from "./../routes/index"
 import { Route as SidebarTemplatesRouteImport } from "./../routes/_sidebar/templates"
@@ -19,6 +20,11 @@ import { Route as SidebarChatRouteImport } from "./../routes/_sidebar/chat"
 const SpacesRoute = SpacesRouteImport.update({
   id: "/spaces",
   path: "/spaces",
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminRoute = AdminRouteImport.update({
+  id: "/admin",
+  path: "/admin",
   getParentRoute: () => rootRouteImport,
 } as any)
 const SidebarRouteRoute = SidebarRouteRouteImport.update({
@@ -48,6 +54,7 @@ const SidebarChatRoute = SidebarChatRouteImport.update({
 
 export interface FileRoutesByFullPath {
   "/": typeof IndexRoute
+  "/admin": typeof AdminRoute
   "/spaces": typeof SpacesRoute
   "/chat": typeof SidebarChatRoute
   "/dashboard": typeof SidebarDashboardRoute
@@ -55,6 +62,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   "/": typeof IndexRoute
+  "/admin": typeof AdminRoute
   "/spaces": typeof SpacesRoute
   "/chat": typeof SidebarChatRoute
   "/dashboard": typeof SidebarDashboardRoute
@@ -64,6 +72,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   "/": typeof IndexRoute
   "/_sidebar": typeof SidebarRouteRouteWithChildren
+  "/admin": typeof AdminRoute
   "/spaces": typeof SpacesRoute
   "/_sidebar/chat": typeof SidebarChatRoute
   "/_sidebar/dashboard": typeof SidebarDashboardRoute
@@ -71,13 +80,14 @@ export interface FileRoutesById {
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: "/" | "/spaces" | "/chat" | "/dashboard" | "/templates"
+  fullPaths: "/" | "/admin" | "/spaces" | "/chat" | "/dashboard" | "/templates"
   fileRoutesByTo: FileRoutesByTo
-  to: "/" | "/spaces" | "/chat" | "/dashboard" | "/templates"
+  to: "/" | "/admin" | "/spaces" | "/chat" | "/dashboard" | "/templates"
   id:
     | "__root__"
     | "/"
     | "/_sidebar"
+    | "/admin"
     | "/spaces"
     | "/_sidebar/chat"
     | "/_sidebar/dashboard"
@@ -87,6 +97,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SidebarRouteRoute: typeof SidebarRouteRouteWithChildren
+  AdminRoute: typeof AdminRoute
   SpacesRoute: typeof SpacesRoute
 }
 
@@ -97,6 +108,13 @@ declare module "@tanstack/react-router" {
       path: "/spaces"
       fullPath: "/spaces"
       preLoaderRoute: typeof SpacesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    "/admin": {
+      id: "/admin"
+      path: "/admin"
+      fullPath: "/admin"
+      preLoaderRoute: typeof AdminRouteImport
       parentRoute: typeof rootRouteImport
     }
     "/_sidebar": {
@@ -156,6 +174,7 @@ const SidebarRouteRouteWithChildren = SidebarRouteRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SidebarRouteRoute: SidebarRouteRouteWithChildren,
+  AdminRoute: AdminRoute,
   SpacesRoute: SpacesRoute,
 }
 export const routeTree = rootRouteImport

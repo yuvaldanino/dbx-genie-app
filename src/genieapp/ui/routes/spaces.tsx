@@ -4,7 +4,7 @@
 
 import { useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useSpaces, useCreateByogSpace, type SpaceOut } from "@/lib/api";
+import { useSpaces, useCreateByogSpace, useAdminCheck, type SpaceOut } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -22,6 +22,7 @@ import {
   LayoutDashboard,
   Command,
   PanelLeftClose,
+  Shield,
 } from "lucide-react";
 
 export const Route = createFileRoute("/spaces")({
@@ -81,6 +82,7 @@ function SpacesPage() {
   const { data: spaces, isLoading } = useSpaces();
   const queryClient = useQueryClient();
   const createByog = useCreateByogSpace();
+  const { data: adminCheck } = useAdminCheck();
 
   const [showByogForm, setShowByogForm] = useState(false);
   const [byogSpaceId, setByogSpaceId] = useState("");
@@ -151,6 +153,16 @@ function SpacesPage() {
             </p>
           </div>
           <div className="flex gap-2">
+            {adminCheck?.is_admin && (
+              <Button
+                variant="outline"
+                className="gap-2"
+                onClick={() => navigate({ to: "/admin" })}
+              >
+                <Shield className="h-4 w-4" />
+                Admin
+              </Button>
+            )}
             <Button
               variant="outline"
               className="gap-2"

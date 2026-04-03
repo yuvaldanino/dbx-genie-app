@@ -13,6 +13,7 @@ from .data_generator import generate_all_tables
 from .schema_designer import design_schema
 from .theme_generator import generate_theme
 from ..db import create_space as db_create_space
+from .dashboard_designer import create_dashboard
 from .space_creator import (
     create_genie_space,
     create_schema,
@@ -190,6 +191,27 @@ def run_pipeline(
         accent_color=accent_color,
         chart_colors=chart_colors,
     )
+
+    # Step 7: Create dashboard
+    logger.info("=== Step 7: Creating dashboard ===")
+    try:
+        dashboard = create_dashboard(
+            ws, warehouse_id, space_id,
+            company_name=company_name,
+            company_description=company_description,
+            tables_info=tables_info,
+            catalog=catalog,
+            schema_name=schema_name,
+            databricks_host=databricks_host,
+            databricks_token=databricks_token,
+            schema_def=schema_def,
+        )
+        if dashboard:
+            logger.info("Dashboard created with %d panels", len(dashboard.get("panels", [])))
+        else:
+            logger.warning("Dashboard creation returned no panels")
+    except Exception:
+        logger.exception("Dashboard creation failed (non-blocking)")
 
     result = {
         "space_id": space_id,

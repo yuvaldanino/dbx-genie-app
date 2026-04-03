@@ -596,3 +596,105 @@ export async function uploadImage(
 export function getImageUrl(imageId: string): string {
   return `/api/images/${imageId}`;
 }
+
+// --- Admin ---
+
+export interface AdminStats {
+  total_users: number;
+  total_spaces: number;
+  total_conversations: number;
+  total_messages: number;
+  messages_this_week: number;
+  active_users_this_week: number;
+}
+
+export interface AdminUser {
+  user_id: string;
+  email: string;
+  username: string;
+  joined: string;
+  spaces_created: number;
+  last_active: string;
+}
+
+export interface AdminSpace {
+  space_id: string;
+  company_name: string;
+  owner_user_id: string;
+  owner_email: string;
+  space_type: string;
+  template_id: string;
+  message_count: number;
+  created_at: string;
+}
+
+export interface UsageTrendPoint {
+  day: string;
+  count: number;
+}
+
+export async function checkAdmin(): Promise<{ is_admin: boolean }> {
+  const { data } = await api.get<{ is_admin: boolean }>("/admin/check");
+  return data;
+}
+
+export function useAdminCheck() {
+  return useQuery({
+    queryKey: ["adminCheck"],
+    queryFn: checkAdmin,
+    staleTime: Infinity,
+  });
+}
+
+export function useAdminStats() {
+  return useQuery({
+    queryKey: ["adminStats"],
+    queryFn: async () => {
+      const { data } = await api.get<AdminStats>("/admin/stats");
+      return data;
+    },
+    staleTime: 30_000,
+  });
+}
+
+export function useAdminUsageTrend(days = 30) {
+  return useQuery({
+    queryKey: ["adminUsageTrend", days],
+    queryFn: async () => {
+      const { data } = await api.get<UsageTrendPoint[]>("/admin/usage-trend", { params: { days } });
+      return data;
+    },
+    staleTime: 60_000,
+  });
+}
+
+export function useAdminUsers() {
+  return useQuery({
+    queryKey: ["adminUsers"],
+    queryFn: async () => {
+      const { data } = await api.get<AdminUser[]>("/admin/users");
+      return data;
+    },
+    staleTime: 30_000,
+  });
+}
+
+export function useAdminSpaces() {
+  return useQuery({
+    queryKey: ["adminSpaces"],
+    queryFn: async () => {
+      const { data } = await api.get<AdminSpace[]>("/admin/spaces");
+      return data;
+    },
+    staleTime: 30_000,
+  });
+}
+
+export function useToggleShared() {
+  return useMutation({
+    mutationFn: async ({ spaceId, shared }: { spaceId: string; shared: boolean }) => {
+      const { data } = await api.patch(`/admin/spaces/${spaceId}/shared`, { shared });
+      return data;
+    },
+  });
+}

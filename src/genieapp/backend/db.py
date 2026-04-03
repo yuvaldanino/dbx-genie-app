@@ -645,3 +645,132 @@ def get_dashboard_data(
             pass
 
     return None
+
+
+# ---------------------------------------------------------------------------
+# Admin queries
+# ---------------------------------------------------------------------------
+
+ADMIN_USER_IDS = {"76554809512980@7474655921234161"}
+
+
+def is_admin(user_id: str) -> bool:
+    """Check if user is an admin."""
+    return user_id in ADMIN_USER_IDS
+
+
+def get_admin_stats(ws: WorkspaceClient) -> dict[str, Any]:
+    """Get aggregate KPI stats for the admin dashboard."""
+    stats: dict[str, Any] = {}
+
+    for key, sql in [
+        ("total_users", f"SELECT COUNT(DISTINCT email) as cnt FROM {_USERS_TABLE} WHERE email IS NOT NULL AND email != ''"),
+        ("total_spaces", f"SELECT COUNT(*) as cnt FROM {_SPACES_TABLE} WHERE is_active = true"),
+        ("total_conversations", f"SELECT COUNT(*) as cnt FROM {_CONVERSATIONS_TABLE}"),
+        ("total_messages", f"SELECT COUNT(*) as cnt FROM {_MESSAGES_TABLE}"),
+        ("messages_this_week", f"SELECT COUNT(*) as cnt FROM {_MESSAGES_TABLE} WHERE created_at >= DATEADD(DAY, -7, CURRENT_TIMESTAMP())"),
+        ("active_users_this_week", f"SELECT COUNT(DISTINCT user_id) as cnt FROM {_MESSAGES_TABLE} WHERE created_at >= DATEADD(DAY, -7, CURRENT_TIMESTAMP())"),
+    ]:
+        try:
+            rows = parse_sql_rows(run_sql(ws, sql, raise_on_error=False))
+            stats[key] = int(rows[0].get("cnt", 0)) if rows else 0
+        except Exception:
+            stats[key] = 0
+
+    return stats
+
+
+def get_usage_trend(ws: WorkspaceClient, days: int = 30) -> list[dict[str, Any]]:
+    """Get messages per day for the last N days."""
+    sql = f"""
+        SELECT DATE(created_at) as day, COUNT(*) as count
+        FROM {_MESSAGES_TABLE}
+        WHERE created_at >= DATEADD(DAY, -{days}, CURRENT_TIMESTAMP())
+        GROUP BY DATE(created_at)
+        ORDER BY day
+    """
+    try:
+        return parse_sql_rows(run_sql(ws, sql, raise_on_error=False))
+    except Exception:
+        return []
+
+
+def get_all_users_with_activity(ws: WorkspaceClient) -> list[dict[str, Any]]:
+    """Get all users with their activity metrics, deduped by email."""
+    sql = f"""
+        SELECT
+            first_value(u.user_id) as user_id,
+            u.email,
+            first_value(u.username) as username,
+            MIN(u.created_at) as joined,
+            MAX(u.updated_at) as last_active
+        FROM {_USERS_TABLE} u
+        WHERE u.email IS NOT NULL AND u.email != ''
+        GROUP BY u.email
+        ORDER BY last_active DESC
+    """
+    try:
+        users = parse_sql_rows(run_sql(ws, sql, raise_on_error=False))
+    except Exception:
+        return []
+
+    # Enrich with space counts per user (all user_ids for that email)
+    for u in users:
+        email = u.get("email", "")
+        try:
+            r = parse_sql_rows(run_sql(ws, f"""
+                SELECT COUNT(*) as cnt FROM {_SPACES_TABLE}
+                WHERE owner_user_id IN (SELECT user_id FROM {_USERS_TABLE} WHERE email = '{_escape(email)}')
+                AND is_active = true
+            """, raise_on_error=False))
+            u["spaces_created"] = int(r[0].get("cnt", 0)) if r else 0
+        except Exception:
+            u["spaces_created"] = 0
+
+    return users
+    try:
+        return parse_sql_rows(run_sql(ws, sql, raise_on_error=False))
+    except Exception:
+        return []
+
+
+def get_all_spaces_with_stats(ws: WorkspaceClient) -> list[dict[str, Any]]:
+    """Get all spaces with owner info and message counts."""
+    sql = f"""
+        SELECT
+            sp.space_id,
+            sp.company_name,
+            sp.owner_user_id,
+            sp.space_type,
+            sp.template_id,
+            sp.created_at,
+            COALESCE(
+                (SELECT u.email FROM {_USERS_TABLE} u WHERE u.user_id = sp.owner_user_id LIMIT 1),
+                sp.owner_user_id
+            ) as owner_email,
+            (
+                SELECT COUNT(*)
+                FROM {_MESSAGES_TABLE} m
+                WHERE m.conversation_id IN (
+                    SELECT c.conversation_id FROM {_CONVERSATIONS_TABLE} c WHERE c.space_id = sp.space_id
+                )
+            ) as message_count
+        FROM {_SPACES_TABLE} sp
+        WHERE sp.is_active = true
+        ORDER BY sp.created_at DESC
+    """
+    try:
+        return parse_sql_rows(run_sql(ws, sql, raise_on_error=False))
+    except Exception:
+        return []
+
+
+def set_space_shared(ws: WorkspaceClient, space_id: str, shared: bool) -> None:
+    """Toggle a space's shared status."""
+    new_type = "shared" if shared else "generated"
+    now = _now_iso()
+    run_sql(
+        ws,
+        f"UPDATE {_SPACES_TABLE} SET space_type = '{new_type}', updated_at = '{now}' WHERE space_id = '{_escape(space_id)}'",
+    )
+    _space_list_cache.clear()

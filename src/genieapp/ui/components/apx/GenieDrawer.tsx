@@ -3,6 +3,7 @@
  */
 
 import { useState, useRef, useEffect } from "react";
+import Markdown from "react-markdown";
 import { X, Send, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -48,7 +49,7 @@ export function GenieDrawer({ open, onClose, spaceId, config }: GenieDrawerProps
 
       {/* Drawer panel */}
       <div
-        className={`fixed top-0 right-0 h-full w-[420px] max-w-[90vw] bg-background border-l shadow-xl z-50 flex flex-col transition-transform duration-300 ${
+        className={`fixed top-0 right-0 h-full w-[420px] max-w-[90vw] bg-background border-l shadow-xl z-50 flex flex-col overflow-hidden transition-transform duration-300 ${
           open ? "translate-x-0" : "translate-x-full"
         }`}
       >
@@ -64,19 +65,19 @@ export function GenieDrawer({ open, onClose, spaceId, config }: GenieDrawerProps
         </div>
 
         {/* Messages */}
-        <ScrollArea className="flex-1" ref={scrollRef}>
-          <div className="p-4 space-y-4">
+        <ScrollArea className="flex-1 overflow-hidden w-full" ref={scrollRef}>
+          <div className="p-4 space-y-4 w-full max-w-full overflow-hidden">
             {messages.length === 0 && (
               <p className="text-sm text-muted-foreground text-center py-8">
                 Ask a question about your data
               </p>
             )}
             {messages.map((msg, i) => (
-              <div key={i} className="space-y-2">
+              <div key={i} className="space-y-2 w-full max-w-full overflow-hidden">
                 {/* User question */}
                 <div className="flex justify-end">
-                  <div className="bg-primary text-primary-foreground rounded-2xl rounded-tr-sm px-3 py-2 max-w-[85%]">
-                    <p className="text-sm">{msg.question}</p>
+                  <div className="bg-primary text-primary-foreground rounded-2xl rounded-tr-sm px-3 py-2 max-w-[85%] break-words overflow-hidden">
+                    <p className="text-sm break-words">{msg.question}</p>
                   </div>
                 </div>
 
@@ -89,30 +90,36 @@ export function GenieDrawer({ open, onClose, spaceId, config }: GenieDrawerProps
                 )}
 
                 {msg.response && (
-                  <Card className="min-w-0 overflow-hidden border-accent/30 bg-accent/5">
-                    <div className="p-3 space-y-2 overflow-hidden break-words">
+                  <Card className="min-w-0 w-full max-w-full overflow-hidden border-accent/30 bg-accent/5">
+                    <div className="p-3 space-y-2 overflow-hidden break-words w-full max-w-full">
                       {msg.response.error && (
                         <p className="text-xs text-destructive">{msg.response.error}</p>
                       )}
                       {msg.response.description && (
-                        <p className="text-sm">{msg.response.description}</p>
+                        <div className="text-sm max-w-none" style={{ overflowWrap: "anywhere" }}>
+                          <Markdown>{msg.response.description}</Markdown>
+                        </div>
                       )}
                       {msg.response.columns.length >= 2 &&
                         msg.response.data.length > 0 &&
                         msg.response.chart_suggestion &&
                         msg.response.chart_suggestion.chart_type !== "table" && (
-                          <ChartRenderer
-                            suggestion={msg.response.chart_suggestion}
-                            data={msg.response.data}
-                            columns={msg.response.columns}
-                          />
+                          <div className="w-full overflow-hidden">
+                            <ChartRenderer
+                              suggestion={msg.response.chart_suggestion}
+                              data={msg.response.data}
+                              columns={msg.response.columns}
+                            />
+                          </div>
                         )}
                       {msg.response.columns.length > 0 && msg.response.data.length > 0 && (
-                        <DataTable
-                          columns={msg.response.columns}
-                          data={msg.response.data}
-                          className="max-h-48 border rounded-md"
-                        />
+                        <div className="w-full overflow-x-auto">
+                          <DataTable
+                            columns={msg.response.columns}
+                            data={msg.response.data}
+                            className="max-h-48 border rounded-md"
+                          />
+                        </div>
                       )}
                     </div>
                   </Card>

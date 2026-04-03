@@ -4,7 +4,7 @@
 
 import { useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useSpaces, useCreateByogSpace, useAdminCheck, type SpaceOut } from "@/lib/api";
+import { useSpaces, useCreateByogSpace, useDeleteSpace, useAdminCheck, type SpaceOut } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -23,6 +23,7 @@ import {
   Command,
   PanelLeftClose,
   Shield,
+  Trash2,
 } from "lucide-react";
 
 export const Route = createFileRoute("/spaces")({
@@ -37,10 +38,18 @@ const TEMPLATE_OPTIONS = [
   { id: "workspace", label: "Query Workspace", icon: PanelLeftClose },
 ] as const;
 
-function SpaceCard({ space, navigate }: { space: SpaceOut; navigate: ReturnType<typeof useNavigate> }) {
+function SpaceCard({
+  space,
+  navigate,
+  onDelete,
+}: {
+  space: SpaceOut;
+  navigate: ReturnType<typeof useNavigate>;
+  onDelete?: (spaceId: string) => void;
+}) {
   return (
     <Card
-      className="bg-card/80 backdrop-blur-sm cursor-pointer hover:border-primary/50 transition-colors"
+      className="bg-card/80 backdrop-blur-sm cursor-pointer hover:border-primary/50 transition-colors relative group"
       onClick={() => navigate({ to: "/chat", search: { spaceId: space.space_id } })}
     >
       <CardContent className="p-5">
@@ -73,6 +82,20 @@ function SpaceCard({ space, navigate }: { space: SpaceOut; navigate: ReturnType<
           </div>
         </div>
       </CardContent>
+      {onDelete && (
+        <button
+          className="absolute top-3 right-3 p-1.5 rounded-md opacity-0 group-hover:opacity-100 transition-opacity bg-destructive/10 hover:bg-destructive/20 text-destructive"
+          title="Delete space"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (window.confirm(`Are you sure you want to delete "${space.company_name}"? This cannot be undone.`)) {
+              onDelete(space.space_id);
+            }
+          }}
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      )}
     </Card>
   );
 }
@@ -82,6 +105,7 @@ function SpacesPage() {
   const { data: spaces, isLoading } = useSpaces();
   const queryClient = useQueryClient();
   const createByog = useCreateByogSpace();
+  const deleteSpace = useDeleteSpace();
   const { data: adminCheck } = useAdminCheck();
 
   const [showByogForm, setShowByogForm] = useState(false);
@@ -328,7 +352,16 @@ function SpacesPage() {
                   {spaces
                     .filter((s) => s.space_type !== "shared")
                     .map((space) => (
-                      <SpaceCard key={space.space_id} space={space} navigate={navigate} />
+                      <SpaceCard
+                        key={space.space_id}
+                        space={space}
+                        navigate={navigate}
+                        onDelete={(id) => {
+                          deleteSpace.mutate(id, {
+                            onSuccess: () => queryClient.invalidateQueries({ queryKey: ["spaces"] }),
+                          });
+                        }}
+                      />
                     ))}
                 </div>
               </div>

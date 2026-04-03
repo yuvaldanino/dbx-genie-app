@@ -420,6 +420,15 @@ export function useSpaces(
   });
 }
 
+export function useDeleteSpace() {
+  return useMutation({
+    mutationFn: async (spaceId: string) => {
+      const { data } = await api.delete(`/spaces/${spaceId}`);
+      return data;
+    },
+  });
+}
+
 // --- Space creation & jobs ---
 
 export interface CreateSpaceOut {

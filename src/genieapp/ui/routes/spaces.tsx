@@ -47,56 +47,104 @@ function SpaceCard({
   navigate: ReturnType<typeof useNavigate>;
   onDelete?: (spaceId: string) => void;
 }) {
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteInput, setDeleteInput] = useState("");
+
+  const canDelete = deleteInput === space.company_name;
+
   return (
-    <Card
-      className="bg-card/80 backdrop-blur-sm cursor-pointer hover:border-primary/50 transition-colors relative group"
-      onClick={() => navigate({ to: "/chat", search: { spaceId: space.space_id } })}
-    >
-      <CardContent className="p-5">
-        <div className="flex items-start gap-4">
-          {space.logo_path ? (
-            <img
-              src={space.logo_path}
-              alt={space.company_name}
-              className="h-12 w-12 object-contain rounded"
-            />
-          ) : (
-            <div
-              className="h-12 w-12 rounded flex items-center justify-center text-white font-bold text-lg shrink-0"
-              style={{ backgroundColor: space.primary_color }}
-            >
-              {space.company_name.charAt(0)}
-            </div>
-          )}
-          <div className="flex-1 min-w-0">
-            <h3 className="font-semibold truncate">
-              {space.company_name}
-            </h3>
-            <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
-              {space.description || "No description"}
-            </p>
-            <div className="flex items-center gap-1 mt-3 text-xs text-muted-foreground">
-              <MessageSquare className="h-3 w-3" />
-              <span>Open Chat</span>
+    <>
+      <Card
+        className="bg-card/80 backdrop-blur-sm cursor-pointer hover:border-primary/50 transition-colors relative group"
+        onClick={() => navigate({ to: "/chat", search: { spaceId: space.space_id } })}
+      >
+        <CardContent className="p-5">
+          <div className="flex items-start gap-4">
+            {space.logo_path ? (
+              <img
+                src={space.logo_path}
+                alt={space.company_name}
+                className="h-12 w-12 object-contain rounded"
+              />
+            ) : (
+              <div
+                className="h-12 w-12 rounded flex items-center justify-center text-white font-bold text-lg shrink-0"
+                style={{ backgroundColor: space.primary_color }}
+              >
+                {space.company_name.charAt(0)}
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <h3 className="font-semibold truncate">
+                {space.company_name}
+              </h3>
+              <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+                {space.description || "No description"}
+              </p>
+              <div className="flex items-center gap-1 mt-3 text-xs text-muted-foreground">
+                <MessageSquare className="h-3 w-3" />
+                <span>Open Chat</span>
+              </div>
             </div>
           </div>
-        </div>
-      </CardContent>
-      {onDelete && (
-        <button
-          className="absolute top-3 right-3 p-1.5 rounded-md opacity-0 group-hover:opacity-100 transition-opacity bg-destructive/10 hover:bg-destructive/20 text-destructive"
-          title="Delete space"
-          onClick={(e) => {
-            e.stopPropagation();
-            if (window.confirm(`Are you sure you want to delete "${space.company_name}"? This cannot be undone.`)) {
-              onDelete(space.space_id);
-            }
-          }}
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
+        </CardContent>
+        {onDelete && (
+          <button
+            className="absolute top-3 right-3 p-1.5 rounded-md opacity-0 group-hover:opacity-100 transition-opacity bg-destructive/10 hover:bg-destructive/20 text-destructive"
+            title="Delete space"
+            onClick={(e) => {
+              e.stopPropagation();
+              setDeleteOpen(true);
+              setDeleteInput("");
+            }}
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        )}
+      </Card>
+
+      {/* Delete confirmation modal */}
+      {deleteOpen && (
+        <>
+          <div className="fixed inset-0 bg-black/40 z-50" onClick={() => setDeleteOpen(false)} />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <Card className="w-full max-w-md bg-card shadow-2xl border">
+              <CardContent className="p-5 space-y-4">
+                <div className="flex items-center gap-2 text-destructive">
+                  <Trash2 className="h-5 w-5" />
+                  <h3 className="font-semibold">Delete Space</h3>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  This action cannot be undone. To confirm, type <strong className="text-foreground">{space.company_name}</strong> below:
+                </p>
+                <Input
+                  value={deleteInput}
+                  onChange={(e) => setDeleteInput(e.target.value)}
+                  placeholder={space.company_name}
+                  autoFocus
+                />
+                <div className="flex gap-2 justify-end">
+                  <Button variant="outline" size="sm" onClick={() => setDeleteOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    disabled={!canDelete}
+                    onClick={() => {
+                      onDelete?.(space.space_id);
+                      setDeleteOpen(false);
+                    }}
+                  >
+                    Delete
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </>
       )}
-    </Card>
+    </>
   );
 }
 
@@ -357,8 +405,13 @@ function SpacesPage() {
                         space={space}
                         navigate={navigate}
                         onDelete={(id) => {
+                          // Optimistically remove from cache immediately
+                          queryClient.setQueryData<SpaceOut[]>(["spaces"], (old) =>
+                            old ? old.filter((s) => s.space_id !== id) : [],
+                          );
                           deleteSpace.mutate(id, {
                             onSuccess: () => queryClient.invalidateQueries({ queryKey: ["spaces"] }),
+                            onError: () => queryClient.invalidateQueries({ queryKey: ["spaces"] }),
                           });
                         }}
                       />

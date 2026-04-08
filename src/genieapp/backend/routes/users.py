@@ -9,7 +9,7 @@ from databricks.sdk import WorkspaceClient
 from fastapi import APIRouter, Request
 
 from ..core import Dependencies, logger
-from ..db import get_or_create_user, update_user_preferences
+from ..db import get_or_create_user, submit_feedback, update_user_preferences
 from ..models import UserOut, UserPreferencesIn
 
 router = APIRouter()
@@ -74,6 +74,26 @@ def update_preferences(
         preferences=prefs.preferences,
     )
     return _user_dict_to_out(user)
+
+
+@router.post("/feedback", operation_id="submitFeedback")
+def submit_feedback_endpoint(
+    body: dict,
+    headers: Dependencies.Headers,
+    ws: Dependencies.Client,
+) -> dict[str, bool]:
+    """Submit user feedback."""
+    message = body.get("message", "").strip()
+    if not message:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="Message is required")
+    submit_feedback(
+        ws,
+        user_id=headers.user_id or "anonymous",
+        email=headers.user_email or "",
+        message=message,
+    )
+    return {"success": True}
 
 
 def _user_dict_to_out(user: dict[str, Any]) -> UserOut:

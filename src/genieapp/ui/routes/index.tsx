@@ -13,12 +13,16 @@ import {
   Sparkles,
   ArrowRight,
   Loader2,
+  Clock,
   History,
   AlertTriangle,
   Upload,
   Link2,
   X,
+  HelpCircle,
 } from "lucide-react";
+
+import { HelpDialog } from "@/components/apx/HelpDialog";
 
 export const Route = createFileRoute("/")({
   component: LandingPage,
@@ -44,6 +48,7 @@ function LandingPage() {
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isCreating, setIsCreating] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [progress, setProgress] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -142,6 +147,18 @@ function LandingPage() {
           "linear-gradient(135deg, hsl(from var(--primary) h s l / 0.08) 0%, hsl(from var(--accent) h s l / 0.06) 50%, hsl(from var(--primary) h s l / 0.03) 100%)",
       }}
     >
+      {/* Help button */}
+      <Button
+        variant="outline"
+        size="default"
+        className="absolute top-6 right-6 z-20 gap-2 text-sm px-4 py-2"
+        onClick={() => setHelpOpen(true)}
+      >
+        <HelpCircle className="h-5 w-5" />
+        Help
+      </Button>
+      <HelpDialog open={helpOpen} onClose={() => setHelpOpen(false)} />
+
       {/* Background decorations */}
       <div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] rounded-full opacity-20 blur-3xl bg-primary" />
       <div className="absolute bottom-[-20%] left-[-10%] w-[500px] h-[500px] rounded-full opacity-15 blur-3xl bg-accent" />
@@ -151,10 +168,10 @@ function LandingPage() {
         {/* Title */}
         <div className="flex items-center gap-3 mb-2">
           <Sparkles className="h-8 w-8 text-primary" />
-          <h1 className="text-4xl md:text-5xl font-bold">GenieApp</h1>
+          <h1 className="text-4xl md:text-5xl font-bold">Genie-rator</h1>
         </div>
         <p className="text-muted-foreground mb-8">
-          Create a custom AI-powered data space for any company in minutes.
+          Generate a branded Genie Space with custom data — ready to query in minutes.
         </p>
 
         <Card className="w-full max-w-lg p-6 space-y-5 bg-card/80 backdrop-blur-sm">
@@ -303,6 +320,12 @@ function LandingPage() {
               </>
             )}
           </Button>
+          {isCreating && (
+            <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground mt-3">
+              <Clock className="h-4 w-4" />
+              <span>This usually takes 4-5 minutes. Feel free to wait — your space will be ready shortly.</span>
+            </div>
+          )}
         </Card>
 
         {/* Previous sessions link */}

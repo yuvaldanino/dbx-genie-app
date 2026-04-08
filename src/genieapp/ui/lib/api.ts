@@ -606,6 +606,17 @@ export function getImageUrl(imageId: string): string {
   return `/api/images/${imageId}`;
 }
 
+// --- Feedback ---
+
+export function useSubmitFeedback() {
+  return useMutation({
+    mutationFn: async (message: string) => {
+      const { data } = await api.post("/feedback", { message });
+      return data;
+    },
+  });
+}
+
 // --- Admin ---
 
 export interface AdminStats {

@@ -7,6 +7,7 @@ import logging
 import re
 import uuid
 from datetime import date, datetime, timezone
+from decimal import Decimal
 from typing import Any
 
 from databricks.sdk import WorkspaceClient
@@ -206,22 +207,28 @@ def _execute_panel_sql(
 
     columns = list(rows[0].keys()) if rows else []
 
-    # Convert types for JSON serialization
+    # Convert all values to JSON-safe types
+    def _to_json_safe(v: Any) -> Any:
+        if v is None:
+            return None
+        if isinstance(v, (int, float, str, bool)):
+            return v
+        if isinstance(v, Decimal):
+            return float(v)
+        if isinstance(v, (date, datetime)):
+            return v.isoformat()
+        if hasattr(v, "item"):  # numpy scalar
+            return v.item()
+        if hasattr(v, "__class__") and "nat" in type(v).__name__.lower():
+            return None
+        try:
+            return float(v)
+        except (ValueError, TypeError):
+            return str(v)
+
     clean_rows = []
     for row in rows:
-        clean = {}
-        for k, v in row.items():
-            if isinstance(v, (date, datetime)):
-                clean[k] = v.isoformat() if hasattr(v, "isoformat") else str(v)
-            elif v is not None:
-                # Try to coerce numeric strings
-                try:
-                    clean[k] = float(v) if "." in str(v) else int(v)
-                except (ValueError, TypeError):
-                    clean[k] = v
-            else:
-                clean[k] = None
-        clean_rows.append(clean)
+        clean_rows.append({k: _to_json_safe(v) for k, v in row.items()})
 
     return columns, clean_rows
 

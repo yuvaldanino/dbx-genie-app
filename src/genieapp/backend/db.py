@@ -22,6 +22,7 @@ _CONVERSATIONS_TABLE = f"`{CATALOG}`.`{SCHEMA}`.`conversations`"
 _MESSAGES_TABLE = f"`{CATALOG}`.`{SCHEMA}`.`messages`"
 _IMAGES_TABLE = f"`{CATALOG}`.`{SCHEMA}`.`images`"
 _SESSIONS_TABLE = f"`{CATALOG}`.`{SCHEMA}`.`sessions`"
+_FEEDBACK_TABLE = f"`{CATALOG}`.`{SCHEMA}`.`feedback`"
 
 # Server-side TTL caches
 _user_cache: TTLCache = TTLCache(maxsize=256, ttl=300)  # 5 min
@@ -150,6 +151,15 @@ def ensure_tables(ws: WorkspaceClient) -> None:
             content_type STRING,
             volume_path STRING,
             size_bytes BIGINT,
+            created_at TIMESTAMP
+        )
+        """,
+        f"""
+        CREATE TABLE IF NOT EXISTS {_FEEDBACK_TABLE} (
+            feedback_id STRING,
+            user_id STRING,
+            email STRING,
+            message STRING,
             created_at TIMESTAMP
         )
         """,
@@ -774,3 +784,23 @@ def set_space_shared(ws: WorkspaceClient, space_id: str, shared: bool) -> None:
         f"UPDATE {_SPACES_TABLE} SET space_type = '{new_type}', updated_at = '{now}' WHERE space_id = '{_escape(space_id)}'",
     )
     _space_list_cache.clear()
+
+
+def submit_feedback(
+    ws: WorkspaceClient,
+    user_id: str,
+    email: str,
+    message: str,
+) -> str:
+    """Store user feedback in the feedback table."""
+    import uuid
+    feedback_id = uuid.uuid4().hex
+    now = _now_iso()
+    run_sql(
+        ws,
+        f"""INSERT INTO {_FEEDBACK_TABLE}
+            (feedback_id, user_id, email, message, created_at)
+            VALUES ('{feedback_id}', '{_escape(user_id)}', '{_escape(email)}',
+                    '{_escape(message)}', '{now}')""",
+    )
+    return feedback_id

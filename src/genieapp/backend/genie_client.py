@@ -23,6 +23,29 @@ _TERMINAL_STATUSES = {
 }
 
 
+def _reexecute_sql(ws: WorkspaceClient, sql: str) -> tuple[list[str], list[dict]]:
+    """Re-execute a SQL query directly when Genie cached results have expired."""
+    from .db import WAREHOUSE_ID
+
+    resp = ws.api_client.do(
+        "POST",
+        "/api/2.0/sql/statements",
+        body={"statement": sql, "warehouse_id": WAREHOUSE_ID, "wait_timeout": "50s"},
+    )
+    if resp.get("status", {}).get("state") != "SUCCEEDED":
+        return [], []
+
+    manifest = resp.get("manifest", {})
+    raw_cols = manifest.get("schema", {}).get("columns", [])
+    columns = [c.get("name", "") for c in raw_cols if c.get("name")]
+
+    data_array = resp.get("result", {}).get("data_array", [])
+    data = [dict(zip(columns, row)) for row in data_array if row] if columns else []
+
+    logger.info("SQL re-execution fallback returned %d rows", len(data))
+    return columns, data
+
+
 def ask_genie(
     ws: WorkspaceClient,
     space_id: str,
@@ -231,6 +254,13 @@ def _parse_genie_response(
 
                     except Exception as e:
                         logger.warning(f"Failed to fetch query result: {e}")
+
+                    # Fallback: re-execute the SQL if Genie results expired
+                    if not data and sql:
+                        try:
+                            columns, data = _reexecute_sql(ws, sql)
+                        except Exception as e2:
+                            logger.warning(f"SQL re-execution fallback failed: {e2}")
 
             # Suggested questions
             if attachment.suggested_questions and attachment.suggested_questions.questions:

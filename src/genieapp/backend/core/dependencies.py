@@ -1,6 +1,6 @@
 """FastAPI dependency injection convenience wrappers."""
 
-from ._defaults import ConfigDependency, ClientDependency, UserWorkspaceClientDependency
+from ._defaults import ConfigDependency, ClientDependency, OptionalUserClientDependency, UserWorkspaceClientDependency
 from ._headers import HeadersDependency
 
 
@@ -10,4 +10,5 @@ class Dependencies:
     Config = ConfigDependency
     Client = ClientDependency
     UserClient = UserWorkspaceClientDependency
+    OptionalUserClient = OptionalUserClientDependency
     Headers = HeadersDependency

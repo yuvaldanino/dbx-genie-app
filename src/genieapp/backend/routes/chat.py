@@ -213,13 +213,16 @@ def get_chat_result(
     conv_id: str,
     msg_id: str,
     ws: Dependencies.Client,
+    user_ws: Dependencies.OptionalUserClient,
     space_id: str | None = None,
     ephemeral: bool = False,
 ) -> ChatMessageOut:
     """Fetch full result for a completed message."""
     sid = _resolve_space_id(space_id)
+    # Use user's OBO token for Genie API (user owns the conversation)
+    genie_ws = user_ws or ws
     result = get_genie_result(
-        ws=ws,
+        ws=genie_ws,
         space_id=sid,
         conversation_id=conv_id,
         message_id=msg_id,
@@ -281,6 +284,7 @@ def list_conversations_endpoint(
 def get_conversation_messages_endpoint(
     conv_id: str,
     ws: Dependencies.Client,
+    user_ws: Dependencies.OptionalUserClient,
     request: Request,
     space_id: str | None = None,
 ) -> list[ConversationMessageOut]:
@@ -294,9 +298,11 @@ def get_conversation_messages_endpoint(
     rows = get_conversation_messages(ws, conv_id)
 
     # Resolve space_id from conversation record if not provided
-    if not space_id:
-        conv = get_conversation(ws, conv_id)
-        space_id = conv.get("space_id") if conv else None
+    if not space_id and conv:
+        space_id = conv.get("space_id")
+
+    # Use user's OBO token for Genie API (user owns the conversation)
+    genie_ws = user_ws or ws
 
     messages = []
     for row in rows:
@@ -308,7 +314,7 @@ def get_conversation_messages_endpoint(
             # Try re-fetching full data from Genie API
             if row.get("status") == "COMPLETED" and msg_id and space_id:
                 try:
-                    result = get_genie_result(ws, space_id, conv_id, msg_id)
+                    result = get_genie_result(genie_ws, space_id, conv_id, msg_id)
                     response = _result_to_response(result)
                     response.is_starred = is_starred
                 except Exception:

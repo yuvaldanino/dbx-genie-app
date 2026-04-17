@@ -45,6 +45,14 @@ def _get_user_ws(headers: HeadersDependency) -> WorkspaceClient:
     return WorkspaceClient(token=headers.token.get_secret_value(), auth_type="pat")
 
 
+def _get_user_ws_optional(headers: HeadersDependency) -> WorkspaceClient | None:
+    """Returns a user WorkspaceClient if OBO token is available, None otherwise."""
+    if not headers.token:
+        return None
+    return WorkspaceClient(token=headers.token.get_secret_value(), auth_type="pat")
+
+
 ConfigDependency: TypeAlias = Annotated[AppConfig, _ConfigDependency.depends()]
 ClientDependency: TypeAlias = Annotated[WorkspaceClient, _WorkspaceClientDependency.depends()]
 UserWorkspaceClientDependency: TypeAlias = Annotated[WorkspaceClient, Depends(_get_user_ws)]
+OptionalUserClientDependency: TypeAlias = Annotated[WorkspaceClient | None, Depends(_get_user_ws_optional)]

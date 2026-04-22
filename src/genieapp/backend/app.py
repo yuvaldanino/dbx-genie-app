@@ -20,3 +20,10 @@ async def _ensure_db_tables() -> None:
         logger.info("ensure_tables completed successfully")
     except Exception as e:
         logger.warning("ensure_tables skipped (expected in local dev): %s", e)
+
+    # Initialize Lakebase Postgres connection pool
+    try:
+        from .pg import init_pool
+        init_pool(ws)
+    except Exception as e:
+        logger.warning("Postgres pool init skipped: %s", e)

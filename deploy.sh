@@ -21,7 +21,30 @@ echo "--- Deploying bundle ---"
 databricks bundle deploy -t "$TARGET"
 echo "Bundle deployed."
 
-# 3. Grant app service principal UC permissions
+# 3. Restore Lakebase postgres resource (bundle deploy strips it)
+echo ""
+echo "--- Restoring Lakebase resource ---"
+.venv/bin/python -c "
+from databricks.sdk import WorkspaceClient
+w = WorkspaceClient(profile='vm')
+app = w.api_client.do('GET', '/api/2.0/apps/${APP_NAME}')
+resources = app.get('resources', [])
+if not any(r.get('postgres') for r in resources):
+    resources.append({
+        'name': 'database',
+        'postgres': {
+            'branch': 'projects/genie-app/branches/production',
+            'database': 'projects/genie-app/branches/production/databases/db-q2cq-zfogvc320i',
+            'permission': 'CAN_CONNECT_AND_CREATE'
+        }
+    })
+    w.api_client.do('PATCH', '/api/2.0/apps/${APP_NAME}', body={'resources': resources})
+    print('  Postgres resource restored')
+else:
+    print('  Postgres resource already present')
+"
+
+# 4. Grant app service principal UC permissions
 echo ""
 echo "--- Granting app permissions ---"
 APP_JSON=$(databricks apps get "$APP_NAME" -o json)
@@ -51,40 +74,15 @@ run_sql() {
   fi
 }
 
-run_sql "GRANT USE_CATALOG ON CATALOG ${CATALOG} TO \\\`${SP_APP_ID}\\\`"
-run_sql "GRANT USE_SCHEMA, SELECT, MODIFY ON SCHEMA ${CATALOG}.${SCHEMA} TO \\\`${SP_APP_ID}\\\`"
-run_sql "GRANT READ_VOLUME, WRITE_VOLUME ON VOLUME ${CATALOG}.${SCHEMA}.${VOLUME} TO \\\`${SP_APP_ID}\\\`"
-echo "UC permissions granted."
+run_sql "GRANT USE_CATALOG ON CATALOG ${CATALOG} TO \\\`${SP_APP_ID}\\\`" || true
+run_sql "GRANT USE_SCHEMA, SELECT, MODIFY ON SCHEMA ${CATALOG}.${SCHEMA} TO \\\`${SP_APP_ID}\\\`" || true
+run_sql "GRANT READ_VOLUME, WRITE_VOLUME ON VOLUME ${CATALOG}.${SCHEMA}.${VOLUME} TO \\\`${SP_APP_ID}\\\`" || true
+echo "UC permissions granted (or already exist)."
 
-# 4. Run setup job (generates data, creates tables, creates Genie Space)
+# 5. Deploy app
 echo ""
-echo "--- Running setup job ---"
-databricks bundle run setup_job -t "$TARGET"
-echo "Setup job complete."
-
-# 5. Grant app SP access to Genie Space
-echo ""
-echo "--- Granting Genie Space permissions ---"
-SPACE_ID=$(python3 -c "
-import json
-state = json.load(open('state.json'))
-print(state['space_id'])
-" 2>/dev/null || echo "")
-
-if [ -n "$SPACE_ID" ]; then
-  databricks api patch "/api/2.0/permissions/genie/${SPACE_ID}" --json "{
-    \"access_control_list\": [{
-      \"service_principal_name\": \"${SP_APP_ID}\",
-      \"permission_level\": \"CAN_MANAGE\"
-    }]
-  }" > /dev/null 2>&1 && echo "  Genie Space ${SPACE_ID}: OK" || echo "  WARN: Could not set Genie Space permissions"
-else
-  echo "  WARN: No space_id found in state.json, skipping"
-fi
-
-# 6. Start the app
-echo ""
-echo "--- Starting app ---"
-databricks bundle run genieapp -t "$TARGET"
+echo "--- Deploying app ---"
+databricks apps deploy "$APP_NAME" --profile vm
 echo ""
 echo "=== Deployment complete! ==="
+echo "App URL: https://${APP_NAME}-7474655921234161.aws.databricksapps.com"

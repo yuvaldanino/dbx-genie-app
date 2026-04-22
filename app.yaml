@@ -13,3 +13,15 @@ env:
     value: /Volumes/yd_launchpad_final_classic_catalog/genie_app/raw_data/state.json
   - name: DATABRICKS_WAREHOUSE_ID
     valueFrom: sql-warehouse
+  - name: PGHOST
+    value: ep-flat-haze-d2mzy9ui.database.us-east-1.cloud.databricks.com
+  - name: PGDATABASE
+    value: databricks_postgres
+  - name: PGPORT
+    value: "5432"
+  - name: PGSSLMODE
+    value: require
+  - name: PGUSER
+    value: "677d1641-521c-4df6-91f4-dacea8be74e7"
+  - name: PGAPPNAME
+    value: genieapp-dev

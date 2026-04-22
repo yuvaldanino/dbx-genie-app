@@ -10,6 +10,8 @@ resources:
           sql_warehouse:
             id: ${var.warehouse_id}
             permission: CAN_USE
+        # Lakebase Postgres env vars are set in app.yaml directly.
+        # The Database resource must still be added via the app UI once for the SP Postgres role.
       permissions:
         - level: CAN_USE
           group_name: users

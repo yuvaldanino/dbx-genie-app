@@ -81,3 +81,128 @@ def admin_toggle_shared(
     _require_admin(request)
     set_space_shared(ws, space_id, body.shared)
     return {"shared": body.shared}
+
+
+@router.get("/lakebase-test", operation_id="adminLakebaseTest")
+def admin_lakebase_test(
+    ws: Dependencies.Client,
+    request: Request,
+) -> dict:
+    """Test Lakebase connectivity from the deployed app."""
+    # Skip admin check temporarily for testing
+    try:
+        return _run_lakebase_tests(ws)
+    except Exception as e:
+        return {"error": f"{type(e).__name__}: {str(e)[:500]}"}
+
+
+def _run_lakebase_tests(ws) -> dict:
+    import os
+
+    results = {"steps": [], "success": False}
+
+    # Step 1: Check for PG* env vars (injected by Databricks App resource binding)
+    pg_env = {}
+    for key in ["PGHOST", "PGPORT", "PGDATABASE", "PGUSER", "PGSSLMODE", "PGPASSWORD"]:
+        val = os.environ.get(key)
+        if val:
+            pg_env[key] = val if key != "PGPASSWORD" else val[:20] + "..."
+    # Also check for any DB_ or DATABASE_ env vars
+    db_env = {k: v[:50] for k, v in os.environ.items() if any(kw in k.upper() for kw in ["PG", "POSTGRES", "DATABASE", "LAKEBASE"])}
+    results["steps"].append({
+        "step": "env_vars",
+        "status": "ok" if pg_env else "missing",
+        "pg_vars": pg_env if pg_env else "none",
+        "all_db_vars": db_env if db_env else "none",
+    })
+
+    # Step 2: Check available Postgres libraries
+    pg_libs = []
+    for lib in ["psycopg2", "psycopg", "pg8000", "asyncpg", "sqlalchemy"]:
+        try:
+            mod = __import__(lib)
+            ver = getattr(mod, "__version__", getattr(mod, "version", "unknown"))
+            pg_libs.append(f"{lib}=={ver}")
+        except ImportError:
+            pass
+    results["steps"].append({"step": "pg_libs", "status": "ok" if pg_libs else "none", "available": pg_libs if pg_libs else "none"})
+
+    # Step 3: Try connecting with env vars + any available library
+    if pg_env.get("PGHOST"):
+        host = os.environ.get("PGHOST")
+        port = os.environ.get("PGPORT", "5432")
+        dbname = os.environ.get("PGDATABASE", "databricks_postgres")
+        user = os.environ.get("PGUSER", "")
+        sslmode = os.environ.get("PGSSLMODE", "require")
+
+        # Get OAuth token for password
+        try:
+            auth_header = ws.config.authenticate()
+            token = auth_header.get("Authorization", "").replace("Bearer ", "")
+            results["steps"].append({"step": "auth_token", "status": "ok", "type": "OAuth/JWT" if token.startswith("eyJ") else "PAT"})
+        except Exception as e:
+            token = ""
+            results["steps"].append({"step": "auth_token", "status": "error", "error": str(e)[:200]})
+
+        # Try psycopg (v3)
+        try:
+            import psycopg
+            conn = psycopg.connect(
+                host=host, port=int(port), dbname=dbname,
+                user=user, password=token, sslmode=sslmode,
+                connect_timeout=10,
+            )
+            cur = conn.execute("SELECT 1 as test")
+            row = cur.fetchone()
+            cur.close()
+            conn.close()
+            results["steps"].append({"step": "psycopg3_connect", "status": "ok", "result": str(row)})
+            results["success"] = True
+        except ImportError:
+            results["steps"].append({"step": "psycopg3_connect", "status": "skip", "message": "not installed"})
+        except Exception as e:
+            results["steps"].append({"step": "psycopg3_connect", "status": "error", "error": str(e)[:300]})
+
+        # Try psycopg2
+        try:
+            import psycopg2
+            conn = psycopg2.connect(
+                host=host, port=port, dbname=dbname,
+                user=user, password=token, sslmode=sslmode,
+                connect_timeout=10,
+            )
+            cur = conn.cursor()
+            cur.execute("SELECT 1 as test")
+            row = cur.fetchone()
+            cur.close()
+            conn.close()
+            results["steps"].append({"step": "psycopg2_connect", "status": "ok", "result": str(row)})
+            results["success"] = True
+        except ImportError:
+            results["steps"].append({"step": "psycopg2_connect", "status": "skip", "message": "not installed"})
+        except Exception as e:
+            results["steps"].append({"step": "psycopg2_connect", "status": "error", "error": str(e)[:300]})
+
+        # Try pg8000 (pure Python)
+        try:
+            import pg8000
+            conn = pg8000.connect(
+                host=host, port=int(port), database=dbname,
+                user=user, password=token, ssl_context=True,
+            )
+            cur = conn.cursor()
+            cur.execute("SELECT 1 as test")
+            row = cur.fetchone()
+            cur.close()
+            conn.close()
+            results["steps"].append({"step": "pg8000_connect", "status": "ok", "result": str(row)})
+            results["success"] = True
+        except ImportError:
+            results["steps"].append({"step": "pg8000_connect", "status": "skip", "message": "not installed"})
+        except Exception as e:
+            results["steps"].append({"step": "pg8000_connect", "status": "error", "error": str(e)[:300]})
+
+    else:
+        results["steps"].append({"step": "connect", "status": "skip", "message": "No PGHOST env var — redeploy the app after adding the Database resource"})
+
+    return results

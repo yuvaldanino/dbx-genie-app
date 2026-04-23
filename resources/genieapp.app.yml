@@ -10,8 +10,8 @@ resources:
           sql_warehouse:
             id: ${var.warehouse_id}
             permission: CAN_USE
-        # Lakebase Postgres env vars are set in app.yaml directly.
-        # The Database resource must still be added via the app UI once for the SP Postgres role.
+        # Lakebase postgres resource — bundle schema doesn't support it yet.
+        # Handled by deploy.sh (restores via API PATCH after bundle deploy).
       permissions:
         - level: CAN_USE
           group_name: users

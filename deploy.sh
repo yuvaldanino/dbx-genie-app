@@ -21,7 +21,7 @@ echo "--- Deploying bundle ---"
 databricks bundle deploy -t "$TARGET"
 echo "Bundle deployed."
 
-# 3. Restore Lakebase postgres resource (bundle deploy strips it)
+# 3. Restore Lakebase postgres resource (bundle deploy strips it every time)
 echo ""
 echo "--- Restoring Lakebase resource ---"
 .venv/bin/python -c "
@@ -87,5 +87,5 @@ echo ""
 echo "=== Deployment complete! ==="
 echo "App URL: https://${APP_NAME}-7474655921234161.aws.databricksapps.com"
 echo ""
-echo "⚠️  IMPORTANT: Run this in the Lakebase SQL editor after deploy:"
-echo "    GRANT ALL ON ALL TABLES IN SCHEMA public TO \"677d1641-521c-4df6-91f4-dacea8be74e7\";"
+echo "⚠️  Run this in the Lakebase SQL editor after deploy:"
+echo "    GRANT app_rw TO \"677d1641-521c-4df6-91f4-dacea8be74e7\";"

@@ -52,11 +52,22 @@ def init_pool(ws: WorkspaceClient) -> None:
     logger.info("Postgres pool initialized (%s:%s/%s)", host, port, dbname)
 
 
+def _ensure_pool():
+    """Auto-initialize the pool if not yet initialized."""
+    global _pool
+    if _pool is None:
+        try:
+            from databricks.sdk import WorkspaceClient
+            ws = WorkspaceClient()
+            init_pool(ws)
+        except Exception as e:
+            raise RuntimeError(f"Postgres pool auto-init failed: {e}")
+
+
 @contextmanager
 def get_conn():
-    """Get a connection from the pool. Auto-returns on exit, rolls back on error."""
-    if _pool is None:
-        raise RuntimeError("Postgres pool not initialized — call init_pool() first")
+    """Get a connection from the pool. Auto-initializes if needed."""
+    _ensure_pool()
     conn = _pool.getconn()
     try:
         yield conn

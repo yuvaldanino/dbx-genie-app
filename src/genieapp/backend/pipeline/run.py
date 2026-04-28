@@ -9,7 +9,7 @@ from typing import Any
 
 from databricks.sdk import WorkspaceClient
 
-from .data_generator import generate_all_tables
+from .data_generator_llm import generate_all_tables_llm
 from .schema_designer import design_schema
 from .theme_generator import generate_theme
 from ..db import create_space as db_create_space
@@ -110,9 +110,15 @@ def run_pipeline(
         accent_color = primary_color
         chart_colors = [primary_color, secondary_color, primary_color, secondary_color, primary_color]
 
-    # Step 2: Generate data with Faker
-    logger.info("=== Step 2: Generating data ===")
-    table_data = generate_all_tables(schema_def, seed=company_name)
+    # Step 2: Generate data with LLM
+    logger.info("=== Step 2: Generating data via LLM ===")
+    table_data = generate_all_tables_llm(
+        schema_def,
+        company_name=company_name,
+        company_description=company_description,
+        databricks_host=databricks_host,
+        databricks_token=databricks_token,
+    )
 
     # Step 3: Create UC schema and tables
     logger.info("=== Step 3: Creating tables in Databricks ===")

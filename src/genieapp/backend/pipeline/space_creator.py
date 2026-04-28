@@ -98,7 +98,11 @@ def create_tables(
         # Build column definitions
         col_defs = []
         for col in columns:
-            sql_type = get_sql_type(col["faker"])
+            # Support both old (faker-based) and new (type-based) schema formats
+            if "faker" in col:
+                sql_type = get_sql_type(col["faker"])
+            else:
+                sql_type = col.get("type", "STRING")
             col_comment = col.get("comment", "")
             col_def = f"`{col['name']}` {sql_type}"
             if col_comment:
@@ -124,10 +128,12 @@ def create_tables(
                 values = []
                 for col in columns:
                     val = row.get(col["name"])
-                    sql_type = get_sql_type(col["faker"])
+                    sql_type = get_sql_type(col["faker"]) if "faker" in col else col.get("type", "STRING")
                     if val is None:
                         values.append("NULL")
-                    elif sql_type in ("STRING", "DATE"):
+                    elif sql_type == "DATE":
+                        values.append(f"DATE '{str(val)}'")
+                    elif sql_type == "STRING":
                         escaped = str(val).replace("'", "''")
                         values.append(f"'{escaped}'")
                     elif sql_type == "BOOLEAN":

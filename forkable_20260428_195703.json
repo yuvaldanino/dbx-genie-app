@@ -1,0 +1,411 @@
+{
+  "timestamp": "2026-04-28T19:57:03.809388+00:00",
+  "company_name": "Forkable",
+  "company_slug": "forkable",
+  "company_description": "Forkable is a corporate meal ordering platform that helps companies provide food benefits to their employees. Employees order meals from local restaurants through the Forkable app, and companies subsidize the cost. Forkable partners with 2,000+ restaurants across 15 major US    \n  cities, serving 500+ corporate clients and 50,000 active users. They handle meal ordering, delivery logistics, corporate billing, and dietary preference matching.",
+  "must_answer_questions": [],
+  "llm_model": "opendoor-claude-opus-46",
+  "timing": {
+    "schema_design_sec": 36.2,
+    "data_generation_sec": 83.7
+  },
+  "schema": {
+    "num_tables": 4,
+    "tables": [
+      {
+        "name": "restaurants",
+        "table_type": "dimension",
+        "requested_rows": 20,
+        "actual_rows": 20,
+        "fixtures": 20,
+        "generated": 0,
+        "spec_columns": 10,
+        "issues": [],
+        "column_summaries": {
+          "restaurant_id": {
+            "type": "numeric",
+            "min": 1.0,
+            "max": 20.0,
+            "avg": 10.5,
+            "unique": 20
+          },
+          "restaurant_name": {
+            "type": "categorical",
+            "unique": 20,
+            "top_values": {
+              "Sweetgreen Downtown": 1,
+              "Chipotle Market St": 1,
+              "Panda Express Union Square": 1,
+              "Cava Midtown": 1,
+              "Shake Shack Financial District": 1
+            }
+          },
+          "city": {
+            "type": "categorical",
+            "unique": 15,
+            "top_values": {
+              "New York": 3,
+              "San Francisco": 2,
+              "Seattle": 2,
+              "Los Angeles": 2,
+              "Washington DC": 1
+            }
+          },
+          "cuisine_type": {
+            "type": "categorical",
+            "unique": 10,
+            "top_values": {
+              "Salads & Bowls": 4,
+              "Mediterranean": 3,
+              "Mexican": 2,
+              "Asian": 2,
+              "American": 2
+            }
+          },
+          "average_meal_price": {
+            "type": "numeric",
+            "min": 10.75,
+            "max": 19.5,
+            "avg": 14.29,
+            "unique": 19
+          },
+          "average_rating": {
+            "type": "numeric",
+            "min": 3.8,
+            "max": 4.8,
+            "avg": 4.31,
+            "unique": 11
+          },
+          "supports_dietary_tags": {
+            "type": "categorical",
+            "unique": 10,
+            "top_values": {
+              "vegetarian,vegan,gluten-free,dairy-free": 4,
+              "vegetarian,gluten-free": 3,
+              "vegetarian,nut-free": 3,
+              "vegetarian,gluten-free,nut-free,dairy-free": 2,
+              "vegetarian,vegan,dairy-free": 2
+            }
+          },
+          "partnership_start_date": {
+            "type": "categorical",
+            "unique": 20,
+            "top_values": {
+              "2019-06-15": 1,
+              "2019-03-01": 1,
+              "2020-01-10": 1,
+              "2019-09-22": 1,
+              "2020-04-05": 1
+            }
+          },
+          "is_active": {
+            "type": "numeric",
+            "min": 0.0,
+            "max": 1.0,
+            "avg": 0.9,
+            "unique": 2
+          },
+          "avg_prep_time_minutes": {
+            "type": "numeric",
+            "min": 12.0,
+            "max": 32.0,
+            "avg": 19.95,
+            "unique": 16
+          }
+        }
+      },
+      {
+        "name": "corporate_clients",
+        "table_type": "dimension",
+        "requested_rows": 20,
+        "actual_rows": 20,
+        "fixtures": 20,
+        "generated": 0,
+        "spec_columns": 10,
+        "issues": [],
+        "column_summaries": {
+          "client_id": {
+            "type": "numeric",
+            "min": 1.0,
+            "max": 20.0,
+            "avg": 10.5,
+            "unique": 20
+          },
+          "company_name": {
+            "type": "categorical",
+            "unique": 20,
+            "top_values": {
+              "Acme Corp": 1,
+              "TechStart Inc": 1,
+              "Global Finance LLC": 1,
+              "Meridian Health Systems": 1,
+              "Apex Consulting Group": 1
+            }
+          },
+          "city": {
+            "type": "categorical",
+            "unique": 14,
+            "top_values": {
+              "New York": 3,
+              "San Francisco": 2,
+              "Chicago": 2,
+              "Los Angeles": 2,
+              "Seattle": 2
+            }
+          },
+          "industry": {
+            "type": "categorical",
+            "unique": 8,
+            "top_values": {
+              "Technology": 6,
+              "Finance": 3,
+              "Healthcare": 2,
+              "Consulting": 2,
+              "Media": 2
+            }
+          },
+          "employee_count": {
+            "type": "numeric",
+            "min": 40.0,
+            "max": 1200.0,
+            "avg": 271.0,
+            "unique": 20
+          },
+          "meal_subsidy_amount": {
+            "type": "numeric",
+            "min": 12.0,
+            "max": 30.0,
+            "avg": 19.93,
+            "unique": 19
+          },
+          "monthly_budget_cap": {
+            "type": "numeric",
+            "min": 9360.0,
+            "max": 540000.0,
+            "avg": 107487.0,
+            "unique": 20
+          },
+          "billing_cycle": {
+            "type": "categorical",
+            "unique": 3,
+            "top_values": {
+              "monthly": 12,
+              "bi-weekly": 5,
+              "weekly": 3
+            }
+          },
+          "contract_start_date": {
+            "type": "categorical",
+            "unique": 20,
+            "top_values": {
+              "2020-01-15": 1,
+              "2022-06-01": 1,
+              "2019-09-01": 1,
+              "2021-03-15": 1,
+              "2020-11-01": 1
+            }
+          },
+          "is_active": {
+            "type": "numeric",
+            "min": 0.0,
+            "max": 1.0,
+            "avg": 0.85,
+            "unique": 2
+          }
+        }
+      },
+      {
+        "name": "employees",
+        "table_type": "dimension",
+        "requested_rows": 25,
+        "actual_rows": 25,
+        "fixtures": 10,
+        "generated": 15,
+        "spec_columns": 9,
+        "issues": [],
+        "column_summaries": {
+          "employee_id": {
+            "type": "numeric",
+            "min": 1.0,
+            "max": 25.0,
+            "avg": 13.0,
+            "unique": 25
+          },
+          "client_id": {
+            "type": "numeric",
+            "min": 1.0,
+            "max": 20.0,
+            "avg": 9.84,
+            "unique": 13
+          },
+          "first_name": {
+            "type": "categorical",
+            "unique": 17,
+            "top_values": {
+              "Sarah": 3,
+              "Michael": 3,
+              "Priya": 2,
+              "Emily": 2,
+              "Wei": 2
+            }
+          },
+          "last_name": {
+            "type": "categorical",
+            "unique": 14,
+            "top_values": {
+              "Garcia": 4,
+              "Johnson": 3,
+              "Chen": 2,
+              "Patel": 2,
+              "Williams": 2
+            }
+          },
+          "email": {
+            "type": "text",
+            "unique": 24,
+            "sample": [
+              "8.84",
+              "6.41",
+              "james.chen@techcorp.com"
+            ]
+          },
+          "dietary_preference": {
+            "type": "categorical",
+            "unique": 8,
+            "top_values": {
+              "none": 6,
+              "vegetarian": 6,
+              "gluten-free": 5,
+              "vegan": 3,
+              "halal": 2
+            }
+          },
+          "signup_date": {
+            "type": "text",
+            "unique": 25,
+            "sample": [
+              "2023-05-07",
+              "2023-09-01",
+              "2022-07-03"
+            ]
+          },
+          "total_orders_placed": {
+            "type": "numeric",
+            "min": 1.0,
+            "max": 501.0,
+            "avg": 167.8,
+            "unique": 22
+          },
+          "is_active": {
+            "type": "numeric",
+            "min": 0.0,
+            "max": 1.0,
+            "avg": 0.8,
+            "unique": 2
+          }
+        }
+      },
+      {
+        "name": "meal_orders",
+        "table_type": "fact",
+        "requested_rows": 400,
+        "actual_rows": 400,
+        "fixtures": 10,
+        "generated": 390,
+        "spec_columns": 11,
+        "issues": [],
+        "column_summaries": {
+          "order_id": {
+            "type": "numeric",
+            "min": 1.0,
+            "max": 400.0,
+            "avg": 200.5,
+            "unique": 400
+          },
+          "employee_id": {
+            "type": "numeric",
+            "min": 1.0,
+            "max": 25.0,
+            "avg": 12.66,
+            "unique": 25
+          },
+          "restaurant_id": {
+            "type": "numeric",
+            "min": 1.0,
+            "max": 20.0,
+            "avg": 10.16,
+            "unique": 20
+          },
+          "order_date": {
+            "type": "text",
+            "unique": 269,
+            "sample": [
+              "2024-06-13",
+              "2024-04-20",
+              "2024-05-19"
+            ]
+          },
+          "meal_type": {
+            "type": "categorical",
+            "unique": 3,
+            "top_values": {
+              "lunch": 269,
+              "dinner": 85,
+              "breakfast": 46
+            }
+          },
+          "order_total": {
+            "type": "numeric",
+            "min": 6.0,
+            "max": 35.86,
+            "avg": 18.7,
+            "unique": 366
+          },
+          "subsidy_amount": {
+            "type": "numeric",
+            "min": 6.0,
+            "max": 25.0,
+            "avg": 14.3,
+            "unique": 299
+          },
+          "employee_paid_amount": {
+            "type": "numeric",
+            "min": 0.0,
+            "max": 10.86,
+            "avg": 4.39,
+            "unique": 261
+          },
+          "delivery_time_minutes": {
+            "type": "numeric",
+            "min": 12.0,
+            "max": 65.0,
+            "avg": 34.91,
+            "unique": 49
+          },
+          "rating": {
+            "type": "numeric",
+            "min": 1.0,
+            "max": 5.0,
+            "avg": 3.95,
+            "unique": 5
+          },
+          "order_status": {
+            "type": "categorical",
+            "unique": 3,
+            "top_values": {
+              "delivered": 365,
+              "cancelled": 24,
+              "refunded": 11
+            }
+          }
+        }
+      }
+    ]
+  },
+  "data_quality": {
+    "total_rows": 465,
+    "total_fixtures": 60,
+    "total_generated": 405,
+    "tables_with_issues": []
+  }
+}

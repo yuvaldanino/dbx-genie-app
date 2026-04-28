@@ -72,6 +72,7 @@ def design_schema(
     *,
     databricks_host: str,
     databricks_token: str,
+    must_answer_questions: list[str] | None = None,
     model: str = "opendoor-claude-opus-46",
 ) -> dict[str, Any]:
     """Call the LLM to design a database schema based on the company description.
@@ -80,6 +81,7 @@ def design_schema(
         company_description: Free-text description of the company and their data.
         databricks_host: Databricks workspace ID for AI Gateway.
         databricks_token: Databricks PAT token.
+        must_answer_questions: Optional list of questions the schema must support.
         model: Model name on the AI Gateway.
 
     Returns:
@@ -90,13 +92,19 @@ def design_schema(
         base_url=f"https://{databricks_host}.ai-gateway.cloud.databricks.com/mlflow/v1",
     )
 
+    # Build user prompt with optional must-answer questions
+    user_prompt = company_description
+    if must_answer_questions:
+        questions_text = "\n".join(f"- {q}" for q in must_answer_questions)
+        user_prompt += f"\n\nMUST-ANSWER QUESTIONS (the schema MUST support answering all of these via SQL):\n{questions_text}"
+
     logger.info("Calling LLM to design schema...")
     resp = client.chat.completions.create(
         model=model,
         max_tokens=8192,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": company_description},
+            {"role": "user", "content": user_prompt},
         ],
     )
 

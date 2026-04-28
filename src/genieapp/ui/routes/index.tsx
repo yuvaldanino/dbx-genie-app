@@ -47,6 +47,7 @@ function LandingPage() {
   const [uploadedPath, setUploadedPath] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [mustAnswerQuestions, setMustAnswerQuestions] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [progress, setProgress] = useState("");
@@ -93,7 +94,7 @@ function LandingPage() {
     setProgress("Starting pipeline...");
 
     try {
-      const { run_id } = await createSpace(companyName.trim(), description.trim(), resolvedLogoUrl);
+      const { run_id } = await createSpace(companyName.trim(), description.trim(), resolvedLogoUrl, mustAnswerQuestions.trim());
 
       let attempts = 0;
       const maxAttempts = 200;
@@ -289,6 +290,20 @@ function LandingPage() {
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Describe the company and the type of data they work with. For example: 'Coca-Cola is a global beverage company. They track sales across 200+ countries, manage distribution logistics, and monitor retailer relationships...'"
               className="w-full min-h-[120px] rounded-md border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-y"
+              disabled={isCreating}
+            />
+          </div>
+
+          {/* Must-answer questions (optional) */}
+          <div>
+            <label className="text-sm font-medium mb-2 block text-left">
+              Questions this space should answer <span className="text-muted-foreground font-normal">(optional)</span>
+            </label>
+            <textarea
+              value={mustAnswerQuestions}
+              onChange={(e) => setMustAnswerQuestions(e.target.value)}
+              placeholder={"e.g.,\nWhat is the total revenue by region?\nWhich product has the highest sales?\nWhat is the monthly trend for new customers?"}
+              className="w-full min-h-[80px] rounded-md border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-y"
               disabled={isCreating}
             />
           </div>

@@ -54,6 +54,7 @@ def run_pipeline(
     logo_path: str = "",
     primary_color: str = "#1a73e8",
     secondary_color: str = "#ea4335",
+    must_answer_questions: list[str] | None = None,
 ) -> dict[str, Any]:
     """Run the full pipeline: design schema → generate data → create space.
 
@@ -80,6 +81,7 @@ def run_pipeline(
         company_description,
         databricks_host=databricks_host,
         databricks_token=databricks_token,
+        must_answer_questions=must_answer_questions,
     )
 
     # Extract company name from description if not provided
@@ -118,6 +120,7 @@ def run_pipeline(
         company_description=company_description,
         databricks_host=databricks_host,
         databricks_token=databricks_token,
+        must_answer_questions=must_answer_questions,
     )
 
     # Step 3: Create UC schema and tables

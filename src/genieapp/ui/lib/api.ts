@@ -446,11 +446,13 @@ export async function createSpace(
   companyName: string,
   description: string,
   logoUrl?: string,
+  mustAnswerQuestions?: string,
 ): Promise<CreateSpaceOut> {
   const { data } = await api.post<CreateSpaceOut>("/spaces", {
     company_name: companyName,
     description,
     logo_url: logoUrl || "",
+    must_answer_questions: mustAnswerQuestions || "",
   });
   return data;
 }

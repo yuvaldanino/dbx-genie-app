@@ -1,205 +1,267 @@
-"""LLM-powered data generator — produces realistic data via Claude instead of Faker.
-Supports parallel generation of independent tables."""
+"""Spec-based data generator — LLM designs distribution specs, Python generates rows."""
 
 from __future__ import annotations
 
+import datetime
 import json
 import logging
+import random
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
+import numpy as np
 from openai import OpenAI
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = """You are a data engineer generating realistic sample data for a company's analytics database.
-You MUST return ONLY a valid JSON array of row objects. No markdown fences, no explanation, no text before or after.
+SPEC_PROMPT = (
+    "You are a data engineer designing a data generation specification.\n"
+    "Output ONLY valid JSON, no markdown fences.\n\n"
+    "For EACH column, provide {dist: TYPE, ...params}. Valid types:\n"
+    "  sequential: {start:1}\n"
+    "  fk_sample: {from_table:'X', from_column:'Y'}\n"
+    "  weighted_choice: {values:['A','B'], weights:[0.6,0.4]}\n"
+    "  uniform_int: {min:1, max:100}\n"
+    "  uniform_float: {min:0.0, max:1000.0, decimals:2}\n"
+    "  normal: {mean:50000, std:15000, min:20000, max:200000, decimals:2}\n"
+    "  date_range: {start:'2023-01-01', end:'2025-04-28'}\n"
+    "  boolean: {true_pct:0.7}\n"
+    "  formula: {expr:'col_a * 0.85'} — for derived columns\n\n"
+    "RULES:\n"
+    "- Use formula for correlated columns (outstanding_balance from principal, maturity from origination)\n"
+    "- Use normal for continuous numerics, weighted_choice ONLY for categorical\n"
+    "- Dimension tables: all rows as fixtures (max 25). Fact: max 10 fixtures.\n"
+    "- Every column MUST be in the columns dict.\n"
+    "- weighted_choice values must be REAL domain-specific data.\n\n"
+    "OUTPUT: {columns: {...}, fixtures: [...]}"
+)
 
-RULES:
-1. Use REAL, realistic data — real city names, real product names, realistic prices and amounts.
-2. Dates must be ISO format (YYYY-MM-DD) within the last 2 years.
-3. Numeric values must be realistic for the business domain (not random large numbers).
-4. Primary key / ID columns should be sequential integers starting from 1.
-5. Foreign key columns must ONLY use values from the provided parent ID list.
-6. Ensure good variety — don't repeat the same values. Spread data across categories.
-7. For monetary values, use realistic amounts with 2 decimal places.
-8. For status/category columns, use a realistic distribution (not perfectly uniform).
-9. String values should look like real business data, not lorem ipsum or gibberish.
-10. Every row must have ALL columns — no missing fields.
-"""
 
-MAX_BATCH_SIZE = 75  # Keep batches small to avoid JSON parse errors
-
-
-def _parse_json_array(raw: str) -> list[dict]:
-    """Parse LLM output into a JSON array, handling common formatting issues."""
-    raw = raw.strip()
+def _parse_json(raw: str) -> Any:
+    """Parse LLM JSON output, handling fences and trailing commas."""
     if raw.startswith("```"):
         raw = raw.split("\n", 1)[1]
-        if raw.endswith("```"):
-            raw = raw[: raw.rfind("```")]
-    start = raw.find("[")
-    end = raw.rfind("]") + 1
-    if start >= 0 and end > start:
-        raw = raw[start:end]
-    raw = re.sub(r",\s*([}\]])", r"\1", raw)
+    if raw.endswith("```"):
+        raw = raw[: raw.rfind("```")]
+    for sc, ec in [("{", "}"), ("[", "]")]:
+        s, e = raw.find(sc), raw.rfind(ec) + 1
+        if s >= 0 and e > s:
+            c = re.sub(r",\s*([}\]])", r"\1", raw[s:e])
+            try:
+                return json.loads(c)
+            except json.JSONDecodeError:
+                continue
     return json.loads(raw)
 
 
-def _build_column_descriptions(table_def: dict) -> str:
-    """Build column description string for the LLM prompt."""
-    lines = []
-    for col in table_def.get("columns", []):
-        name = col["name"]
-        sql_type = col.get("sql_type", col.get("type", "STRING"))
-        comment = col.get("comment", "")
-        is_pk = col.get("primary_key", False)
-        fk_ref = col.get("references", "")
-
-        desc = f"- {name} ({sql_type})"
-        if comment:
-            desc += f": {comment}"
-        if is_pk:
-            desc += " [PRIMARY KEY, sequential integer starting from 1]"
-        if fk_ref:
-            desc += f" [FOREIGN KEY → {fk_ref}]"
-        lines.append(desc)
-    return "\n".join(lines)
-
-
-def _build_fk_context(table_def: dict, generated_tables: dict[str, list[dict]]) -> str:
-    """Build FK value context so the LLM uses valid parent IDs."""
-    fk_lines = []
-    for col in table_def.get("columns", []):
-        fk_ref = col.get("references", "")
-        if not fk_ref:
-            continue
-
-        if "." in fk_ref:
-            ref_table, ref_col = fk_ref.split(".", 1)
-        else:
-            ref_table, ref_col = fk_ref, f"{fk_ref}_id"
-
-        parent_rows = generated_tables.get(ref_table, [])
-        if parent_rows:
-            parent_ids = [row.get(ref_col) for row in parent_rows if row.get(ref_col) is not None]
-            if parent_ids:
-                if len(parent_ids) <= 50:
-                    id_str = str(parent_ids)
-                else:
-                    import random
-                    sample = random.sample(parent_ids, 50)
-                    id_str = f"{sample} (sampled from {len(parent_ids)} total)"
-                fk_lines.append(f"- Column '{col['name']}' must use values from: {id_str}")
-
-    if fk_lines:
-        return "Foreign key constraints (use ONLY these values):\n" + "\n".join(fk_lines)
-    return ""
-
-
 def _get_table_dependencies(table_def: dict) -> set[str]:
-    """Get the set of table names this table depends on via FK references."""
+    """Get table names this table depends on via FK references."""
     deps = set()
-    for col in table_def.get("columns", []):
-        ref = col.get("references", "")
+    for c in table_def.get("columns", []):
+        ref = c.get("references", "")
         if ref:
-            ref_table = ref.split(".")[0] if "." in ref else ref
-            deps.add(ref_table)
+            deps.add(ref.split(".")[0] if "." in ref else ref)
     return deps
 
 
-def generate_table_data_llm(
+def _generate_spec(
     table_def: dict,
     company_name: str,
     company_description: str,
     generated_tables: dict[str, list[dict]],
-    row_count: int = 100,
+    must_answer_questions: list[str] | None,
     *,
     databricks_host: str,
     databricks_token: str,
-    model: str = "opendoor-claude-opus-46",
-) -> list[dict]:
-    """Generate realistic data for one table via LLM."""
+    model: str,
+) -> dict:
+    """Ask LLM to design a data generation spec for one table."""
     client = OpenAI(
         api_key=databricks_token,
         base_url=f"https://{databricks_host}.ai-gateway.cloud.databricks.com/mlflow/v1",
     )
+    name = table_def["name"]
 
-    table_name = table_def["name"]
-    table_comment = table_def.get("comment", "")
-    col_desc = _build_column_descriptions(table_def)
-    fk_context = _build_fk_context(table_def, generated_tables)
+    col_lines = []
+    for c in table_def["columns"]:
+        d = f"- {c['name']} ({c.get('type', 'STRING')})"
+        if c.get("comment"):
+            d += f": {c['comment']}"
+        if c.get("primary_key"):
+            d += " [PK]"
+        if c.get("references"):
+            d += f" [FK -> {c['references']}]"
+        col_lines.append(d)
 
-    base_prompt = f"""Company: {company_name}
-Description: {company_description}
+    fk_info = []
+    for c in table_def["columns"]:
+        ref = c.get("references", "")
+        if not ref:
+            continue
+        rt = ref.split(".")[0] if "." in ref else ref
+        rc = ref.split(".")[1] if "." in ref else f"{ref}_id"
+        parent = generated_tables.get(rt, [])
+        if parent:
+            ids = list(set(str(r.get(rc)) for r in parent if r.get(rc) is not None))[:40]
+            fk_info.append(f"Available {c['name']} values: {ids}")
 
-Table: "{table_name}"
-{f"Table description: {table_comment}" if table_comment else ""}
+    questions_text = ""
+    if must_answer_questions:
+        questions_text = "\nMust-answer questions:\n" + "\n".join(f"- {q}" for q in must_answer_questions)
 
-Columns:
-{col_desc}
+    prompt = (
+        f"Company: {company_name}\n"
+        f"Description: {company_description}\n"
+        f"Table: \"{name}\" — {table_def.get('comment', '')}\n"
+        f"Row count: {table_def.get('row_count', 100)} | Type: {table_def.get('table_type', 'fact')}\n\n"
+        f"Columns:\n" + "\n".join(col_lines) + "\n"
+        + ("\n".join(fk_info) + "\n" if fk_info else "")
+        + questions_text + "\n\nDesign the spec."
+    )
 
-{fk_context}"""
+    for attempt in range(3):
+        try:
+            raw = client.chat.completions.create(
+                model=model, max_tokens=8192,
+                messages=[{"role": "system", "content": SPEC_PROMPT}, {"role": "user", "content": prompt}],
+            ).choices[0].message.content.strip()
+            return _parse_json(raw)
+        except Exception as e:
+            if attempt == 2:
+                logger.error("[%s] Spec generation failed: %s", name, str(e)[:100])
+                return {"columns": {}, "fixtures": []}
+            logger.warning("[%s] Spec parse retry %d", name, attempt + 1)
 
-    logger.info("Generating %d rows for '%s' via LLM...", row_count, table_name)
+    return {"columns": {}, "fixtures": []}
 
-    all_rows: list[dict] = []
-    batch_size = min(row_count, MAX_BATCH_SIZE)
-    remaining = row_count
-    max_retries = 2
 
-    while remaining > 0:
-        current_batch = min(batch_size, remaining)
+def _generate_rows_from_spec(
+    spec: dict,
+    row_count: int,
+    generated_tables: dict[str, list[dict]],
+    table_def: dict,
+) -> list[dict]:
+    """Generate rows from an LLM-designed spec with two-pass formula + sanity checks."""
+    columns = spec.get("columns", {})
+    fixtures = spec.get("fixtures", [])
+    rows = list(fixtures)
+    start_id = len(rows) + 1
 
-        if all_rows:
-            batch_prompt = f"""{base_prompt}
+    # Split regular vs formula columns
+    regular_cols = {cn: cs for cn, cs in columns.items() if isinstance(cs, dict) and cs.get("dist") != "formula"}
+    formula_cols = {cn: cs for cn, cs in columns.items() if isinstance(cs, dict) and cs.get("dist") == "formula"}
 
-Generate exactly {current_batch} rows. Continue sequential IDs from {len(all_rows) + 1}.
-Do NOT repeat any previously generated data.
-Return a JSON array of {current_batch} row objects. Each row must have ALL columns."""
-        else:
-            batch_prompt = f"""{base_prompt}
+    for i in range(max(0, row_count - len(rows))):
+        row = {}
 
-Generate exactly {current_batch} rows.
-Return a JSON array of {current_batch} row objects. Each row must have ALL columns."""
-
-        for attempt in range(max_retries + 1):
+        # PASS 1: Regular columns
+        for cn, cs in regular_cols.items():
+            dist = cs.get("dist", cs.get("type", ""))
             try:
-                resp = client.chat.completions.create(
-                    model=model,
-                    max_tokens=16384,
-                    messages=[
-                        {"role": "system", "content": SYSTEM_PROMPT},
-                        {"role": "user", "content": batch_prompt},
-                    ],
-                )
-
-                raw = resp.choices[0].message.content.strip()
-                rows = _parse_json_array(raw)
-
-                if not isinstance(rows, list):
-                    raise ValueError(f"Expected array, got {type(rows).__name__}")
-
-                all_rows.extend(rows)
-                remaining -= len(rows)
-                logger.info("  Got %d rows for '%s' (total: %d/%d)", len(rows), table_name, len(all_rows), row_count)
-                break  # Success, exit retry loop
-
-            except (json.JSONDecodeError, ValueError) as e:
-                if attempt < max_retries:
-                    logger.warning("  Parse error for '%s' (attempt %d/%d): %s — retrying", table_name, attempt + 1, max_retries + 1, str(e)[:100])
+                if dist == "sequential":
+                    row[cn] = cs.get("start", 1) + len(fixtures) + i
+                elif dist == "fk_sample":
+                    parent = generated_tables.get(cs.get("from_table", ""), [])
+                    ids = [r.get(cs.get("from_column", "")) for r in parent if r.get(cs.get("from_column", "")) is not None]
+                    row[cn] = random.choice(ids) if ids else random.randint(1, 10)
+                elif dist == "weighted_choice":
+                    vals = cs.get("values", cs.get("choices", ["A"]))
+                    wts = cs.get("weights", [1.0 / len(vals)] * len(vals))
+                    if len(wts) != len(vals):
+                        wts = [1.0 / len(vals)] * len(vals)
+                    total = sum(wts)
+                    row[cn] = random.choices(vals, weights=[w / total for w in wts], k=1)[0]
+                elif dist == "uniform_int":
+                    row[cn] = random.randint(int(cs.get("min", 0)), int(cs.get("max", 100)))
+                elif dist in ("uniform_float", "uniform_double"):
+                    row[cn] = round(random.uniform(float(cs.get("min", 0)), float(cs.get("max", 1000))), int(cs.get("decimals", 2)))
+                elif dist in ("normal", "gaussian"):
+                    v = np.random.normal(float(cs.get("mean", 50)), float(cs.get("std", cs.get("stddev", 10))))
+                    v = max(float(cs.get("min", 0)), min(float(cs.get("max", 1e9)), v))
+                    row[cn] = round(float(v), int(cs.get("decimals", 2)))
+                elif dist == "date_range":
+                    s = datetime.date.fromisoformat(str(cs.get("start", "2023-01-01")))
+                    e = datetime.date.fromisoformat(str(cs.get("end", "2025-04-28")))
+                    d = (e - s).days
+                    row[cn] = (s + datetime.timedelta(days=random.randint(0, max(d, 1)))).isoformat()
+                elif dist == "boolean":
+                    row[cn] = random.random() < float(cs.get("true_pct", 0.5))
+                elif dist in ("fixed", "constant"):
+                    row[cn] = cs.get("value", "")
                 else:
-                    logger.error("  Failed to parse LLM output for '%s' after %d attempts", table_name, max_retries + 1)
-                    remaining = 0  # Give up on remaining rows
-                    break
-            except Exception as e:
-                logger.error("  LLM call failed for '%s': %s", table_name, e)
-                remaining = 0
-                break
+                    # Fallback: try to infer
+                    if "values" in cs:
+                        row[cn] = random.choice(cs["values"])
+                    elif "min" in cs and "max" in cs:
+                        row[cn] = round(random.uniform(float(cs["min"]), float(cs["max"])), 2)
+                    else:
+                        row[cn] = None
+            except Exception:
+                row[cn] = None
 
-    logger.info("Generated %d rows for '%s'", len(all_rows), table_name)
-    return all_rows[:row_count]
+        # PASS 2: Formula columns (all dependencies now available)
+        for cn, cs in formula_cols.items():
+            expr = str(cs.get("expr", "0"))
+            try:
+                ctx = {"__builtins__": {}, "round": round, "max": max, "min": min, "abs": abs, "int": int, "float": float}
+                ctx.update(row)
+                val = eval(expr, ctx)
+                row[cn] = round(val, 2) if isinstance(val, float) else val
+            except Exception:
+                # Fallback: find a referenced column and derive from it
+                for other_cn, other_val in row.items():
+                    if other_cn in expr and isinstance(other_val, (int, float)) and other_val > 0:
+                        row[cn] = round(other_val * random.uniform(0.5, 0.95), 2)
+                        break
+                else:
+                    row[cn] = 0
+
+        rows.append(row)
+
+    # PASS 3: Post-generation sanity checks
+    for row in rows[len(fixtures):]:
+        # outstanding_balance <= principal
+        for bal in ("outstanding_balance", "remaining_balance"):
+            for prin in ("principal_amount", "original_amount", "loan_amount"):
+                if bal in row and prin in row and isinstance(row[bal], (int, float)) and isinstance(row[prin], (int, float)):
+                    if row[bal] > row[prin]:
+                        row[bal] = round(row[prin] * random.uniform(0.3, 0.95), 2)
+
+        # selling_price > dealer_cost
+        if "selling_price" in row and "dealer_cost_at_sale" in row:
+            sp, dc = row["selling_price"], row["dealer_cost_at_sale"]
+            if isinstance(sp, (int, float)) and isinstance(dc, (int, float)) and sp < dc:
+                row["selling_price"] = round(dc * random.uniform(1.02, 1.25), 2)
+
+        # gross_profit = selling_price - cost
+        if "gross_profit" in row and "selling_price" in row and "dealer_cost_at_sale" in row:
+            sp, dc = row["selling_price"], row["dealer_cost_at_sale"]
+            if isinstance(sp, (int, float)) and isinstance(dc, (int, float)):
+                row["gross_profit"] = round(sp - dc, 2)
+
+        # collected_amount <= charge_amount
+        if "collected_amount" in row and "charge_amount" in row:
+            ca, ch = row["collected_amount"], row["charge_amount"]
+            if isinstance(ca, (int, float)) and isinstance(ch, (int, float)) and ca > ch:
+                row["collected_amount"] = round(ch * random.uniform(0.5, 0.95), 2)
+
+        # maturity_date > origination_date
+        for mat_col in ("maturity_date",):
+            for orig_col in ("origination_date", "start_date"):
+                if mat_col in row and orig_col in row:
+                    mat, orig = row.get(mat_col), row.get(orig_col)
+                    if mat in (0, "0", None) or (isinstance(mat, str) and isinstance(orig, str) and mat <= orig):
+                        try:
+                            orig_d = datetime.date.fromisoformat(str(orig)[:10])
+                            term = row.get("term_months", 60)
+                            if not isinstance(term, (int, float)):
+                                term = 60
+                            row[mat_col] = (orig_d + datetime.timedelta(days=int(term) * 30)).isoformat()
+                        except Exception:
+                            pass
+
+    return rows[:row_count]
 
 
 def generate_all_tables_llm(
@@ -209,71 +271,81 @@ def generate_all_tables_llm(
     *,
     databricks_host: str,
     databricks_token: str,
+    must_answer_questions: list[str] | None = None,
     model: str = "opendoor-claude-opus-46",
 ) -> dict[str, list[dict]]:
-    """Generate data for all tables using LLM, with parallel execution for independent tables.
+    """Generate data for all tables using spec-based approach.
 
-    Tables are grouped into dependency levels:
-    - Level 0: tables with no FK dependencies (generated in parallel)
-    - Level 1: tables that depend only on level 0 (generated in parallel after level 0)
-    - etc.
+    LLM generates distribution specs per table, Python generates rows instantly.
+    Independent tables get specs in parallel.
+
+    Args:
+        schema: Schema dict with "tables" list.
+        company_name: Company name for context.
+        company_description: Business description for context.
+        databricks_host: Workspace ID for AI Gateway.
+        databricks_token: PAT token.
+        must_answer_questions: Optional questions the data must support.
+        model: LLM model name.
+
+    Returns:
+        Dict mapping table_name → list of row dicts.
     """
     tables_by_name = {t["name"]: t for t in schema["tables"]}
     generated: dict[str, list[dict]] = {}
 
-    # Build dependency graph and group into levels
+    # Build dependency levels
     levels: list[list[str]] = []
     resolved: set[str] = set()
-    remaining_tables = set(tables_by_name.keys())
+    remaining = set(tables_by_name.keys())
 
-    while remaining_tables:
-        # Find tables whose dependencies are all resolved
-        current_level = []
-        for name in remaining_tables:
-            deps = _get_table_dependencies(tables_by_name[name])
-            if deps.issubset(resolved):
-                current_level.append(name)
+    while remaining:
+        current = [n for n in remaining if _get_table_dependencies(tables_by_name[n]).issubset(resolved)]
+        if not current:
+            current = list(remaining)
+        levels.append(current)
+        resolved.update(current)
+        remaining -= set(current)
 
-        if not current_level:
-            # Circular dependency or missing table — just add remaining
-            logger.warning("Could not resolve dependencies for: %s — generating sequentially", remaining_tables)
-            current_level = list(remaining_tables)
+    logger.info("Table generation levels: %s", levels)
 
-        levels.append(current_level)
-        resolved.update(current_level)
-        remaining_tables -= set(current_level)
+    # Generate level by level
+    for level_idx, level_names in enumerate(levels):
+        logger.info("=== Level %d: %s %s ===", level_idx, level_names, "(parallel)" if len(level_names) > 1 else "")
 
-    logger.info("Table generation levels: %s", [[t for t in level] for level in levels])
-
-    # Generate each level in parallel
-    for level_idx, level_tables in enumerate(levels):
-        logger.info("=== Generating level %d: %s ===", level_idx, level_tables)
-
-        def _gen_table(table_name: str) -> tuple[str, list[dict]]:
-            table_def = tables_by_name[table_name]
-            row_count = table_def.get("row_count", 100)
-            rows = generate_table_data_llm(
-                table_def=table_def,
+        def _gen_spec(table_name: str) -> tuple[str, dict]:
+            spec = _generate_spec(
+                table_def=tables_by_name[table_name],
                 company_name=company_name,
                 company_description=company_description,
-                generated_tables=generated,  # Only contains completed levels
-                row_count=row_count,
+                generated_tables=generated,
+                must_answer_questions=must_answer_questions,
                 databricks_host=databricks_host,
                 databricks_token=databricks_token,
                 model=model,
             )
-            return table_name, rows
+            return table_name, spec
 
-        if len(level_tables) == 1:
-            # Single table — no need for thread pool
-            name, rows = _gen_table(level_tables[0])
-            generated[name] = rows
+        # Generate specs (parallel for independent tables)
+        specs: dict[str, dict] = {}
+        if len(level_names) == 1:
+            name, spec = _gen_spec(level_names[0])
+            specs[name] = spec
+            logger.info("[%s] Spec: %d cols, %d fixtures", name, len(spec.get("columns", {})), len(spec.get("fixtures", [])))
         else:
-            # Multiple independent tables — generate in parallel
-            with ThreadPoolExecutor(max_workers=min(len(level_tables), 4)) as executor:
-                futures = {executor.submit(_gen_table, name): name for name in level_tables}
+            with ThreadPoolExecutor(max_workers=min(len(level_names), 4)) as executor:
+                futures = {executor.submit(_gen_spec, n): n for n in level_names}
                 for future in as_completed(futures):
-                    name, rows = future.result()
-                    generated[name] = rows
+                    name, spec = future.result()
+                    specs[name] = spec
+                    logger.info("[%s] Spec: %d cols, %d fixtures", name, len(spec.get("columns", {})), len(spec.get("fixtures", [])))
+
+        # Generate rows from specs
+        for name in level_names:
+            table_def = tables_by_name[name]
+            row_count = table_def.get("row_count", 100)
+            rows = _generate_rows_from_spec(specs[name], row_count, generated, table_def)
+            generated[name] = rows
+            logger.info("[%s] Generated %d rows", name, len(rows))
 
     return generated

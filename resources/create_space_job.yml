@@ -16,6 +16,7 @@ resources:
               databricks_host_id: "7474655921234161"
               llm_model: "opendoor-claude-opus-46"
               logo_url: ""
+              must_answer_questions: ""
 
         - task_key: create_tables
           depends_on:

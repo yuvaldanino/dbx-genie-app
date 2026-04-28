@@ -200,6 +200,7 @@ class CreateSpaceIn(BaseModel):
     company_name: str
     description: str
     logo_url: str = ""
+    must_answer_questions: str = ""
 
 
 class CreateByogSpaceIn(BaseModel):

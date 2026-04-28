@@ -467,6 +467,7 @@ def create_space_pipeline(
                 "warehouse_id": WAREHOUSE_ID,
                 "databricks_host_id": "7474655921234161",
                 "llm_model": "opendoor-claude-opus-46",
+                "must_answer_questions": req.must_answer_questions or "",
             },
         )
         return CreateSpaceOut(run_id=str(run.run_id))

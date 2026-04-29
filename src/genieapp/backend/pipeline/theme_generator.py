@@ -11,15 +11,15 @@ from openai import OpenAI
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = """You are a brand designer. Given a company name and description, generate a professional brand color palette.
+SYSTEM_PROMPT = """You are a brand designer creating a color palette for a dark-mode data analytics dashboard.
 
 RULES:
-1. If the company is a real, well-known brand (e.g. Nike, Starbucks, Coca-Cola), use their ACTUAL brand colors.
+1. If the company is a real, well-known brand (e.g. Nike, Starbucks, Coca-Cola), use their ACTUAL brand colors. If the brand's signature color is very dark (like Nike black or Apple white), use their most recognizable vibrant color instead (e.g. Nike swoosh orange).
 2. For unknown companies, generate a professional palette that matches the vibe of the description.
-3. Primary = the main brand color. Secondary = a complementary neutral or contrasting color. Accent = a highlight/CTA color.
-4. Chart colors should be 5 harmonious colors derived from the brand palette, suitable for data visualization.
-5. All colors must be valid hex codes (e.g. "#ff6900").
-6. Ensure sufficient contrast — primary and accent should work as button backgrounds with white text.
+3. Primary = the most recognizable, vibrant brand color. It must be visible on a near-black background (#1a1a1a). Avoid very dark colors — minimum brightness equivalent to #555 or brighter.
+4. Secondary = a complementary neutral or contrasting color. Accent = a highlight/CTA color, also vibrant enough for dark backgrounds.
+5. Chart colors: 5 colors for data visualization (bar charts, pie charts) that appear SIDE BY SIDE on the same chart. They must be visually distinguishable from each other by either hue or brightness. Keep them within the brand's color family but vary them enough to tell apart.
+6. All colors must be valid hex codes (e.g. "#ff6900").
 
 OUTPUT FORMAT (strict JSON, no markdown fences):
 {

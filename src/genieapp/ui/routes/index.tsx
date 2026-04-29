@@ -14,15 +14,16 @@ import {
   ArrowRight,
   Loader2,
   Clock,
-  History,
   AlertTriangle,
   Upload,
   Link2,
   X,
   HelpCircle,
+  User,
 } from "lucide-react";
 
 import { HelpDialog } from "@/components/apx/HelpDialog";
+import { useAuth } from "@/components/apx/AuthProvider";
 
 export const Route = createFileRoute("/")({
   component: LandingPage,
@@ -37,6 +38,7 @@ const PROGRESS_MESSAGES: Record<string, string> = {
 
 function LandingPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const [companyName, setCompanyName] = useState("");
   const [description, setDescription] = useState("");
@@ -148,16 +150,24 @@ function LandingPage() {
           "linear-gradient(135deg, hsl(from var(--primary) h s l / 0.08) 0%, hsl(from var(--accent) h s l / 0.06) 50%, hsl(from var(--primary) h s l / 0.03) 100%)",
       }}
     >
-      {/* Help button */}
-      <Button
-        variant="outline"
-        size="default"
-        className="absolute top-6 right-6 z-20 gap-2 text-sm px-4 py-2"
-        onClick={() => setHelpOpen(true)}
-      >
-        <HelpCircle className="h-5 w-5" />
-        Help
-      </Button>
+      {/* Top bar — logged in + help */}
+      <div className="absolute top-6 left-6 right-6 z-20 flex items-center justify-between">
+        {user?.email ? (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <User className="h-3.5 w-3.5" />
+            <span>Logged in as <span className="text-foreground font-medium">{user.email}</span></span>
+          </div>
+        ) : <div />}
+        <Button
+          variant="outline"
+          size="default"
+          className="gap-2 text-sm px-4 py-2"
+          onClick={() => setHelpOpen(true)}
+        >
+          <HelpCircle className="h-5 w-5" />
+          Help
+        </Button>
+      </div>
       <HelpDialog open={helpOpen} onClose={() => setHelpOpen(false)} />
 
       {/* Background decorations */}
@@ -174,6 +184,18 @@ function LandingPage() {
         <p className="text-muted-foreground mb-8">
           Generate a branded Genie Space with custom data — ready to query in minutes.
         </p>
+
+        {/* View All Genie Spaces button */}
+        <Button
+          variant="outline"
+          size="lg"
+          className="gap-2 mb-6 h-11 px-6 text-sm border-primary/30 hover:border-primary/60 hover:bg-primary/5"
+          onClick={() => navigate({ to: "/spaces" })}
+        >
+          <Sparkles className="h-4 w-4 text-primary" />
+          View All Genie Spaces
+          <ArrowRight className="h-4 w-4" />
+        </Button>
 
         <Card className="w-full p-8 space-y-6 bg-card/90 backdrop-blur-sm shadow-lg border-border/80">
           {/* Company Name + Logo side by side */}
@@ -348,15 +370,7 @@ function LandingPage() {
           )}
         </Card>
 
-        {/* Previous sessions link */}
-        <Button
-          variant="ghost"
-          className="mt-4 gap-2 text-muted-foreground"
-          onClick={() => navigate({ to: "/spaces" })}
-        >
-          <History className="h-4 w-4" />
-          View Previous Sessions
-        </Button>
+        {/* "View All Genie Spaces" button is now above the form */}
       </div>
     </div>
   );

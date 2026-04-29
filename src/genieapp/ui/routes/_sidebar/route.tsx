@@ -135,7 +135,7 @@ function SidebarLayout() {
 
         {/* Nav links */}
         <nav className="p-2 space-y-1">
-          <Link to="/">
+          <Link to="/spaces">
             <Button variant="ghost" className="w-full justify-start gap-2">
               <Home className="h-4 w-4 text-primary" />
               Home

@@ -78,6 +78,93 @@ Also add `shadow-sm` to cards in QueryResult for subtle depth.
 
 ---
 
+### 5. Remove "Connect Existing" Button + Add "Logged in as" Indicator
+**Problem:** "Connect Existing" (BYOG) button on spaces page is not needed for the demo. No user identity shown anywhere.
+**Fix:**
+- Spaces page: Remove "Connect Existing" button and all BYOG form code/state
+- Spaces page: Add "Logged in as [email]" at top using `useAuth().user?.email`
+- Homepage: Add "Logged in as [email]" at top left (next to Help button at top right)
+
+**Files to modify:**
+- `src/genieapp/ui/routes/spaces.tsx` — remove BYOG button/form, add logged-in indicator
+- `src/genieapp/ui/routes/index.tsx` — add logged-in indicator at top
+
+**Tested in:** Sandbox scenarios 7 (Homepage) and 8 (Spaces Page)
+
+---
+
+### 6. Homepage: Replace "View Previous Sessions" with "View All Genie Spaces"
+**Problem:** "View Previous Sessions" ghost link at the bottom was hidden, confusing, and poorly labeled.
+**Fix:**
+- Remove the ghost link at the bottom of the page
+- Add a prominent outlined button between the subtitle and form card: "View All Genie Spaces" with sparkle icon + arrow
+- Styled with primary-tinted border for visibility without competing with the main CTA
+
+**Files to modify:**
+- `src/genieapp/ui/routes/index.tsx` — replace bottom ghost link with prominent button above form
+
+**Tested in:** Sandbox scenario 7 (Homepage)
+
+---
+
+### 7. Sidebar "Home" Button → Navigate to Spaces Page (not Create Page)
+**Problem:** The Home button in the sidebar layout (`_sidebar/route.tsx`) navigates to `/` (the create form). Users expect Home to take them back to their spaces list, not the creation page — especially since "Create New" buttons already exist on the spaces page.
+**Fix:** Change the Home button's `navigate({ to: "/" })` to `navigate({ to: "/spaces" })`.
+**File to modify:** `src/genieapp/ui/routes/_sidebar/route.tsx` — update Home button onClick
+
+**No sandbox test needed — single route change.**
+
+---
+
+### 8. Brand Color System Overhaul — Dark Mode Contrast + Chart Visibility
+**Problem:** When a space loads, `BrandThemeInjector` overrides ALL CSS variables (including our contrast fixes from #4) with brand-tinted values from `color-utils.ts`. Current issues:
+- Background 0.18, Card 0.22 → only 4% gap (same "black on black")
+- Border at 0.30 → too faint
+- Neutral chroma at 0.035 → aggressive tinting (Nike orange = brownish everything)
+- Chart colors get +0.07 lightness bump → not enough for dark charts
+- No minimum contrast enforcement — Nike's #111111 primary is invisible
+
+**Fix — `color-utils.ts` `deriveTheme()` dark mode block:**
+
+Neutrals (match globals.css, reduce chroma):
+```
+background: tinted(hue, 0.13, 0.015)   // was 0.18, 0.035
+card:       tinted(hue, 0.21, 0.015)   // was 0.22, 0.04
+border:     tinted(hue, 0.33, 0.015)   // was 0.30, 0.025
+muted:      tinted(hue, 0.27, 0.015)   // was 0.26, 0.03
+```
+
+Primary/accent:
+```
+darkBump: 0.10 (was 0.07)
+clamp minimum lightness to 0.55 (so Nike #111111 → visible orange-ish)
+```
+
+Chart colors — lightness spread (keeps brand hues, no hue rotation):
+```
+1. Bump all by +0.10, clamp floor to 0.45
+2. Check if all 5 are within 0.15 lightness range (clustered)
+3. If clustered → redistribute to targets [0.65, 0.55, 0.75, 0.60, 0.70]
+   while keeping each color's original hue and chroma
+4. Also ensure minimum chroma of 0.08 so colors aren't washed out
+```
+
+**Reference implementation:** `src/genieapp/ui/test-color-themes.tsx` → `deriveThemeImproved()` and `spreadLightness()` functions
+
+**Fix — `theme_generator.py` LLM prompt (enhancement):**
+- Add: "This app uses dark mode (bg ~#1a1a1a). Colors must be vibrant enough to be visible on dark backgrounds"
+- Add: "Chart colors appear side-by-side on the same chart — ensure they are distinguishable by either hue or lightness"
+- Add: "If the brand's signature color is very dark (like black), use their most recognizable vibrant color instead"
+
+**Files to modify:**
+- `src/genieapp/ui/lib/color-utils.ts` — update `deriveTheme()` dark mode block
+- `src/genieapp/backend/pipeline/theme_generator.py` — improve LLM prompt
+- `scripts/pipeline/01_design_and_generate.ipynb` — same prompt update in notebook
+
+**Tested in:** Sandbox scenario 9 (Color Themes Side-by-Side) — verified with Nike, Coca-Cola, Spotify, Starbucks, Forkable. All brands keep their identity while being visible and distinguishable on dark backgrounds.
+
+---
+
 ## Backlog
 
 _(Add future UI fixes here as we identify them)_

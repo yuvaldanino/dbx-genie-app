@@ -8,6 +8,8 @@
 
 import { useState, type ReactNode } from "react";
 import { TestLandingPage } from "./test-homepage";
+import { TestSpacesPage } from "./test-spaces";
+import { TestColorThemes } from "./test-color-themes";
 import Markdown from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
@@ -410,7 +412,17 @@ export const scenarios: Scenario[] = [
   },
   {
     name: "Homepage (Create Space Form)",
-    description: "Wider layout with 2-column grid, bigger textareas",
+    description: "Wider layout, 2-column grid, logged-in-as indicator",
     render: () => <TestLandingPage />,
+  },
+  {
+    name: "Spaces Page",
+    description: "No Connect Existing button, logged-in-as indicator, mock spaces",
+    render: () => <TestSpacesPage />,
+  },
+  {
+    name: "Color Themes (Side-by-Side)",
+    description: "Current vs improved color derivation for Nike, Forkable, Starbucks, etc.",
+    render: () => <TestColorThemes />,
   },
 ];

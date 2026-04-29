@@ -1,0 +1,296 @@
+{
+  "timestamp": "2026-04-28T23:44:55.847461+00:00",
+  "company_name": "HR for all",
+  "company_slug": "hr_for_all",
+  "company_description": "HR company with tons of data.",
+  "must_answer_questions": [
+    "HR and Employee Policy",
+    "What is the PTO policy for employees with more than 5 years of service?",
+    "How many sick days are full-time tellers entitled to?",
+    "What is the process for requesting a leave of absence?",
+    "What does the employee handbook say about remote work?",
+    "Audit and Examiner Prep",
+    "What controls do we have in place for wire transfer approvals?",
+    "What is our policy for third party vendor risk management?",
+    "What does our information security policy say about data access controls?",
+    "Show me our procedures for handling customer complaints",
+    "Operational / Day to Day",
+    "What is the approval threshold for a personal loan override?",
+    "What are the steps for opening a new business account?",
+    "What is our policy on waiving fees for long-standing customers?",
+    "What are the procedures for end of day balancing?",
+    "IT and Security",
+    "What is our acceptable use policy for company devices?",
+    "What are the procedures if a data breach is suspected?",
+    "What is our password reset policy?"
+  ],
+  "llm_model": "opendoor-claude-opus-46",
+  "timing": {
+    "schema_design_sec": 43.1,
+    "data_generation_sec": 503.6
+  },
+  "schema": {
+    "num_tables": 4,
+    "tables": [
+      {
+        "name": "departments",
+        "table_type": "dimension",
+        "requested_rows": 15,
+        "actual_rows": 15,
+        "fixtures": 15,
+        "generated": 0,
+        "spec_columns": 7,
+        "issues": [],
+        "column_summaries": {
+          "department_id": {
+            "type": "numeric",
+            "min": 1.0,
+            "max": 15.0,
+            "avg": 8.0,
+            "unique": 15
+          },
+          "department_name": {
+            "type": "categorical",
+            "unique": 15,
+            "top_values": {
+              "Human Resources": 1,
+              "Information Technology": 1,
+              "Operations": 1,
+              "Compliance": 1,
+              "Audit": 1
+            }
+          },
+          "department_head": {
+            "type": "categorical",
+            "unique": 15,
+            "top_values": {
+              "Patricia Morales": 1,
+              "James Chen": 1,
+              "Linda Washington": 1,
+              "Robert Fitzgerald": 1,
+              "Angela Torres": 1
+            }
+          },
+          "headcount": {
+            "type": "numeric",
+            "min": 12.0,
+            "max": 110.0,
+            "avg": 38.67,
+            "unique": 15
+          },
+          "annual_budget": {
+            "type": "numeric",
+            "min": 720000.0,
+            "max": 3200000.0,
+            "avg": 1674666.67,
+            "unique": 15
+          },
+          "created_date": {
+            "type": "categorical",
+            "unique": 11,
+            "top_values": {
+              "2005-01-15": 4,
+              "2006-07-10": 2,
+              "2005-03-01": 1,
+              "2005-06-01": 1,
+              "2007-02-20": 1
+            }
+          },
+          "is_active": {
+            "type": "numeric",
+            "min": 0.0,
+            "max": 1.0,
+            "avg": 0.93,
+            "unique": 2
+          }
+        }
+      },
+      {
+        "name": "policy_categories",
+        "table_type": "dimension",
+        "requested_rows": 20,
+        "actual_rows": 20,
+        "fixtures": 20,
+        "generated": 0,
+        "spec_columns": 7,
+        "issues": [],
+        "column_summaries": {
+          "category_id": {
+            "type": "numeric",
+            "min": 1.0,
+            "max": 20.0,
+            "avg": 10.5,
+            "unique": 20
+          },
+          "category_name": {
+            "type": "categorical",
+            "unique": 20,
+            "top_values": {
+              "HR and Employee Policy": 1,
+              "PTO Policy": 1,
+              "Sick Leave Policy": 1,
+              "Leave of Absence": 1,
+              "Remote Work Policy": 1
+            }
+          },
+          "parent_category": {
+            "type": "categorical",
+            "unique": 4,
+            "top_values": {
+              "HR and Employee Policy": 6,
+              "Audit and Examiner Prep": 5,
+              "Operational / Day to Day": 5,
+              "IT and Security": 4
+            }
+          },
+          "description": {
+            "type": "categorical",
+            "unique": 20,
+            "top_values": {
+              "Top-level grouping for all human resources and employee-related policies including PTO, sick leave, leave of absence, remote work, and employee handbook provisions.": 1,
+              "Governs paid time off (PTO) accrual, usage, and carryover rules. Employees with more than 5 years of service accrue 25 PTO days per year; those with fewer accrue 15 days. Maximum carryover is 5 days annually.": 1,
+              "Defines sick leave entitlements. Full-time tellers are entitled to 12 sick days per calendar year. Part-time employees receive a prorated amount based on scheduled hours.": 1,
+              "Outlines the process for requesting a leave of absence. Employees must submit a formal request to HR at least 30 days in advance for foreseeable leave. Approval requires manager sign-off and HR review. FMLA-eligible employees may take up to 12 weeks of unpaid leave.": 1,
+              "Specifies remote work eligibility, expectations, and equipment provisions. The employee handbook states that remote work arrangements require manager approval, a signed remote work agreement, and compliance with information security policies. Employees must be available during core hours of 9 AM to 3 PM.": 1
+            }
+          },
+          "regulatory_flag": {
+            "type": "numeric",
+            "min": 0.0,
+            "max": 1.0,
+            "avg": 0.6,
+            "unique": 2
+          },
+          "review_frequency_days": {
+            "type": "numeric",
+            "min": 90.0,
+            "max": 365.0,
+            "avg": 259.0,
+            "unique": 3
+          },
+          "created_date": {
+            "type": "categorical",
+            "unique": 18,
+            "top_values": {
+              "2019-01-15": 2,
+              "2019-02-01": 2,
+              "2019-02-15": 1,
+              "2020-03-20": 1,
+              "2019-03-01": 1
+            }
+          }
+        }
+      },
+      {
+        "name": "policies",
+        "table_type": "fact",
+        "requested_rows": 250,
+        "actual_rows": 250,
+        "fixtures": 0,
+        "generated": 250,
+        "spec_columns": 0,
+        "issues": [],
+        "column_summaries": {}
+      },
+      {
+        "name": "policy_acknowledgements",
+        "table_type": "fact",
+        "requested_rows": 400,
+        "actual_rows": 400,
+        "fixtures": 10,
+        "generated": 390,
+        "spec_columns": 10,
+        "issues": [],
+        "column_summaries": {
+          "acknowledgement_id": {
+            "type": "numeric",
+            "min": 1.0,
+            "max": 400.0,
+            "avg": 200.5,
+            "unique": 400
+          },
+          "policy_id": {
+            "type": "numeric",
+            "min": 101.0,
+            "max": 115.0,
+            "avg": 107.43,
+            "unique": 15
+          },
+          "employee_name": {
+            "type": "text",
+            "unique": 40,
+            "sample": [
+              "Brandon Turner",
+              "Patrick King",
+              "Priya Patel"
+            ]
+          },
+          "employee_role": {
+            "type": "categorical",
+            "unique": 10,
+            "top_values": {
+              "Full-Time Teller": 81,
+              "Loan Officer": 57,
+              "Customer Service Rep": 52,
+              "Part-Time Teller": 43,
+              "IT Administrator": 33
+            }
+          },
+          "department_id": {
+            "type": "numeric",
+            "min": 1.0,
+            "max": 15.0,
+            "avg": 7.08,
+            "unique": 15
+          },
+          "years_of_service": {
+            "type": "numeric",
+            "min": 0.0,
+            "max": 20.0,
+            "avg": 5.99,
+            "unique": 18
+          },
+          "employment_type": {
+            "type": "categorical",
+            "unique": 4,
+            "top_values": {
+              "Full-Time": 238,
+              "Part-Time": 85,
+              "Contract": 47,
+              "Temporary": 30
+            }
+          },
+          "acknowledgement_date": {
+            "type": "text",
+            "unique": 299,
+            "sample": [
+              "2024-04-20",
+              "2023-06-08",
+              "2024-05-19"
+            ]
+          },
+          "is_acknowledged": {
+            "type": "numeric",
+            "min": 0.0,
+            "max": 1.0,
+            "avg": 0.83,
+            "unique": 2
+          },
+          "score_pct": {
+            "type": "numeric",
+            "min": 54.0,
+            "max": 100.0,
+            "avg": 84.91,
+            "unique": 224
+          }
+        }
+      }
+    ]
+  },
+  "data_quality": {
+    "total_rows": 685,
+    "total_fixtures": 45,
+    "total_generated": 640,
+    "tables_with_issues": []
+  }
+}

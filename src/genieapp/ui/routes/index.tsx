@@ -165,7 +165,7 @@ function LandingPage() {
       <div className="absolute bottom-[-20%] left-[-10%] w-[500px] h-[500px] rounded-full opacity-15 blur-3xl bg-accent" />
 
       {/* Content */}
-      <div className="relative z-10 flex flex-col items-center text-center max-w-2xl w-full px-6">
+      <div className="relative z-10 flex flex-col items-center text-center max-w-4xl w-full px-6">
         {/* Title */}
         <div className="flex items-center gap-3 mb-2">
           <Sparkles className="h-8 w-8 text-primary" />
@@ -175,7 +175,9 @@ function LandingPage() {
           Generate a branded Genie Space with custom data — ready to query in minutes.
         </p>
 
-        <Card className="w-full max-w-lg p-6 space-y-5 bg-card/80 backdrop-blur-sm">
+        <Card className="w-full p-8 space-y-6 bg-card/90 backdrop-blur-sm shadow-lg border-border/80">
+          {/* Company Name + Logo side by side */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Company name */}
           <div>
             <label className="text-sm font-medium mb-2 block text-left">
@@ -186,6 +188,7 @@ function LandingPage() {
               onChange={(e) => setCompanyName(e.target.value)}
               placeholder="e.g. NovaTech Logistics"
               disabled={isCreating}
+              className="h-11"
             />
           </div>
 
@@ -231,6 +234,7 @@ function LandingPage() {
                 onChange={(e) => setLogoUrl(e.target.value)}
                 placeholder="https://logo.clearbit.com/company.com"
                 disabled={isCreating}
+                className="h-11"
               />
             ) : (
               <div className="space-y-2">
@@ -279,8 +283,9 @@ function LandingPage() {
               </div>
             )}
           </div>
+          </div>
 
-          {/* Company description */}
+          {/* Company description — full width, taller */}
           <div>
             <label className="text-sm font-medium mb-2 block text-left">
               Company Description
@@ -289,12 +294,12 @@ function LandingPage() {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Describe the company and the type of data they work with. For example: 'Coca-Cola is a global beverage company. They track sales across 200+ countries, manage distribution logistics, and monitor retailer relationships...'"
-              className="w-full min-h-[120px] rounded-md border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-y"
+              className="w-full min-h-[150px] rounded-md border bg-background px-4 py-3 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-y"
               disabled={isCreating}
             />
           </div>
 
-          {/* Must-answer questions (optional) */}
+          {/* Must-answer questions (optional) — full width, taller */}
           <div>
             <label className="text-sm font-medium mb-2 block text-left">
               Questions this space should answer <span className="text-muted-foreground font-normal">(optional)</span>
@@ -303,7 +308,7 @@ function LandingPage() {
               value={mustAnswerQuestions}
               onChange={(e) => setMustAnswerQuestions(e.target.value)}
               placeholder={"e.g.,\nWhat is the total revenue by region?\nWhich product has the highest sales?\nWhat is the monthly trend for new customers?"}
-              className="w-full min-h-[80px] rounded-md border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-y"
+              className="w-full min-h-[110px] rounded-md border bg-background px-4 py-3 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-y"
               disabled={isCreating}
             />
           </div>
@@ -319,7 +324,7 @@ function LandingPage() {
           {/* Submit */}
           <Button
             size="lg"
-            className="w-full gap-2"
+            className="w-full gap-2 h-12 text-base"
             disabled={!canSubmit}
             onClick={handleCreate}
           >

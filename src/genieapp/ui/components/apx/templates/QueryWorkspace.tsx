@@ -11,6 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import Markdown from "react-markdown";
+import { mdComponents } from "@/components/apx/md-components";
 import { ChartRenderer } from "@/components/apx/ChartRenderer";
 import { DataTable } from "@/components/apx/DataTable";
 import {
@@ -403,15 +405,14 @@ function QueryResult({ msg }: { msg: Message }) {
 
   return (
     <div className="space-y-5">
-      {/* Response header */}
-      <div>
-        <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-1">
-          Response
-        </p>
-        {r.description && (
-          <p className="text-sm">{r.description}</p>
-        )}
-      </div>
+      {/* Response description */}
+      {r.description && (
+        <Card className="p-5 bg-accent/5 border-accent/20 shadow-sm">
+          <div className="text-sm leading-relaxed">
+            <Markdown components={mdComponents}>{r.description}</Markdown>
+          </div>
+        </Card>
+      )}
 
       {/* Error */}
       {r.error && (
@@ -426,7 +427,7 @@ function QueryResult({ msg }: { msg: Message }) {
           <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground mb-2">
             Visualization
           </p>
-          <Card className="p-4">
+          <Card className="p-4 shadow-sm">
             <ChartRenderer
               key={r.message_id || `chart-${msg.question}`}
               suggestion={
@@ -452,7 +453,7 @@ function QueryResult({ msg }: { msg: Message }) {
               </span>
             )}
           </p>
-          <Card className="overflow-hidden">
+          <Card className="overflow-hidden shadow-sm">
             <DataTable columns={r.columns} data={r.data} className="max-h-80" />
           </Card>
         </div>

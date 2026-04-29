@@ -24,6 +24,7 @@ import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { mdComponents } from "./md-components";
 import { ChartRenderer } from "./ChartRenderer";
 import { DataTable } from "./DataTable";
 import { ExportButton } from "./ExportButton";
@@ -34,18 +35,6 @@ interface MessageBubbleProps {
   response: ChatMessageOut;
   onAskQuestion?: (question: string) => void;
 }
-
-/** Minimal component overrides for react-markdown. */
-const mdComponents = {
-  p: ({ children }: { children?: React.ReactNode }) => <p className="mb-1 last:mb-0">{children}</p>,
-  strong: ({ children }: { children?: React.ReactNode }) => <strong className="font-semibold">{children}</strong>,
-  ul: ({ children }: { children?: React.ReactNode }) => <ul className="list-disc pl-4 mb-1 space-y-0.5">{children}</ul>,
-  ol: ({ children }: { children?: React.ReactNode }) => <ol className="list-decimal pl-4 mb-1 space-y-0.5">{children}</ol>,
-  li: ({ children }: { children?: React.ReactNode }) => <li>{children}</li>,
-  code: ({ children }: { children?: React.ReactNode }) => (
-    <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">{children}</code>
-  ),
-};
 
 const ERROR_MESSAGES: Record<string, string> = {
   PERMISSION_DENIED: "You don't have access to query this data.",

@@ -4,6 +4,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import Markdown from "react-markdown";
+import { mdComponents } from "./md-components";
 import { X, Send, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -97,7 +98,7 @@ export function GenieDrawer({ open, onClose, spaceId, config }: GenieDrawerProps
                       )}
                       {msg.response.description && (
                         <div className="text-sm max-w-none" style={{ overflowWrap: "anywhere" }}>
-                          <Markdown>{msg.response.description}</Markdown>
+                          <Markdown components={mdComponents}>{msg.response.description}</Markdown>
                         </div>
                       )}
                       {msg.response.columns.length >= 2 &&

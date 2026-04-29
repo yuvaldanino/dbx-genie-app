@@ -1,12 +1,13 @@
 /**
- * Interactive Recharts visualizations with chart type + axis controls.
+ * Improved ChartRenderer — sandbox copy with better formatting.
  *
- * Formatting improvements:
- * - Human-readable column names (total_balance → Total Balance)
- * - Abbreviated Y-axis ticks (45000 → 45K)
- * - Custom dark-mode tooltip with clean layout
- * - Angled X-axis labels for long text
- * - Donut-style pie chart
+ * Changes vs original ChartRenderer.tsx:
+ * 1. Human-readable column names (total_balance → Total Balance)
+ * 2. Abbreviated Y-axis ticks (45000 → 45K)
+ * 3. Custom tooltip with clean layout and proper formatting
+ * 4. Angled X-axis labels for long text
+ * 5. Better tooltip dark-mode styling
+ * 6. Improved legend formatting
  */
 
 import { useState } from "react";
@@ -36,8 +37,11 @@ import {
   Legend,
 } from "recharts";
 import { Button } from "@/components/ui/button";
-import { MapRenderer } from "./MapRenderer";
 import type { ChartSuggestion } from "@/lib/api";
+
+// ---------------------------------------------------------------------------
+// Colors
+// ---------------------------------------------------------------------------
 
 const COLORS = [
   "var(--chart-1)",
@@ -70,12 +74,14 @@ interface ChartRendererProps {
 // Formatting helpers
 // ---------------------------------------------------------------------------
 
-/** Convert column_name → "Column Name". */
+/** Convert column_name → "Column Name" */
 function formatColumnName(col: string): string {
-  return col.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  return col
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-/** Abbreviate large numbers for axis ticks: 1500 → 1.5K, 2000000 → 2M. */
+/** Abbreviate large numbers for axis ticks: 1500 → 1.5K, 2000000 → 2M */
 function formatAxisTick(value: number | string): string {
   const num = Number(value);
   if (isNaN(num)) return String(value);
@@ -88,7 +94,7 @@ function formatAxisTick(value: number | string): string {
   return num.toLocaleString();
 }
 
-/** Format value for tooltip — full precision with commas. */
+/** Format value for tooltip display — full precision with commas */
 function formatTooltipValue(value: number | string): string {
   const num = Number(value);
   if (isNaN(num)) return String(value);
@@ -96,7 +102,7 @@ function formatTooltipValue(value: number | string): string {
   return num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-/** KPI big number. */
+/** KPI big number */
 function formatKpiValue(value: number): string {
   const abs = Math.abs(value);
   const sign = value < 0 ? "-" : "";
@@ -130,7 +136,7 @@ function isNumericColumn(data: Record<string, unknown>[], col: string): boolean 
   return numericCount > sample.length / 2;
 }
 
-/** Check if any x-axis value is long enough to need angled labels. */
+/** Check if any x-axis value is long enough to need angled labels */
 function needsAngledLabels(data: Record<string, unknown>[], xAxis: string): boolean {
   return data.some((row) => String(row[xAxis] ?? "").length > 10);
 }
@@ -150,12 +156,15 @@ function CustomTooltip({
   active,
   payload,
   label,
+  xAxis,
 }: {
   active?: boolean;
   payload?: TooltipPayloadItem[];
   label?: string;
+  xAxis: string;
 }) {
   if (!active || !payload || payload.length === 0) return null;
+
   return (
     <div className="rounded-lg border border-border/80 bg-card px-3 py-2.5 shadow-xl text-card-foreground">
       <p className="text-sm font-medium mb-1">{String(label)}</p>
@@ -177,7 +186,7 @@ function CustomTooltip({
 // Main Component
 // ---------------------------------------------------------------------------
 
-export function ChartRenderer({ suggestion, data, columns }: ChartRendererProps) {
+export function TestChartRenderer({ suggestion, data, columns }: ChartRendererProps) {
   const numericCols = columns.filter((c) => isNumericColumn(data, c));
   const [chartType, setChartType] = useState<ChartType>(suggestion.chart_type as ChartType);
   const [xAxis, setXAxis] = useState(() => {
@@ -191,34 +200,6 @@ export function ChartRenderer({ suggestion, data, columns }: ChartRendererProps)
   if (!data.length) return null;
   const chartData = yAxis ? coerceNumeric(data, yAxis) : data;
   const angledLabels = needsAngledLabels(data, xAxis);
-
-  // Map — lat/lon markers
-  if (chartType === "map") {
-    const latCol = yAxis || columns.find((c) => /^lat/i.test(c)) || columns[0];
-    const lonCol = xAxis || columns.find((c) => /^lo?n/i.test(c)) || columns[1];
-    const labelCol = suggestion.title && columns.includes(suggestion.title) ? suggestion.title : undefined;
-    return (
-      <div className="space-y-2">
-        <ChartToolbar
-          chartType={chartType}
-          onTypeChange={setChartType}
-          columns={columns}
-          numericCols={numericCols}
-          xAxis={xAxis}
-          yAxis={yAxis}
-          onXChange={setXAxis}
-          onYChange={setYAxis}
-        />
-        <MapRenderer
-          data={data}
-          latColumn={latCol}
-          lonColumn={lonCol}
-          labelColumn={labelCol}
-          columns={columns}
-        />
-      </div>
-    );
-  }
 
   // KPI — single large number
   if (chartType === "kpi") {
@@ -287,7 +268,7 @@ export function ChartRenderer({ suggestion, data, columns }: ChartRendererProps)
             <CartesianGrid strokeDasharray="3 3" className="opacity-20" />
             <XAxis {...xAxisProps} />
             <YAxis {...yAxisProps} />
-            <Tooltip content={<CustomTooltip />} cursor={{ fill: "var(--muted)", opacity: 0.3 }} />
+            <Tooltip content={<CustomTooltip xAxis={xAxis} />} cursor={{ fill: "var(--muted)", opacity: 0.3 }} />
             <Legend formatter={(value: string) => formatColumnName(value)} wrapperStyle={{ fontSize: 12 }} />
             <Bar dataKey={yAxis} fill="var(--chart-1)" radius={[4, 4, 0, 0]} />
           </BarChart>
@@ -296,7 +277,7 @@ export function ChartRenderer({ suggestion, data, columns }: ChartRendererProps)
             <CartesianGrid strokeDasharray="3 3" className="opacity-20" />
             <XAxis {...xAxisProps} />
             <YAxis {...yAxisProps} />
-            <Tooltip content={<CustomTooltip />} />
+            <Tooltip content={<CustomTooltip xAxis={xAxis} />} />
             <Legend formatter={(value: string) => formatColumnName(value)} wrapperStyle={{ fontSize: 12 }} />
             <Line type="monotone" dataKey={yAxis} stroke="var(--chart-1)" strokeWidth={2} dot={{ r: 3 }} />
           </LineChart>
@@ -305,7 +286,7 @@ export function ChartRenderer({ suggestion, data, columns }: ChartRendererProps)
             <CartesianGrid strokeDasharray="3 3" className="opacity-20" />
             <XAxis {...xAxisProps} />
             <YAxis {...yAxisProps} />
-            <Tooltip content={<CustomTooltip />} />
+            <Tooltip content={<CustomTooltip xAxis={xAxis} />} />
             <Legend formatter={(value: string) => formatColumnName(value)} wrapperStyle={{ fontSize: 12 }} />
             <Area type="monotone" dataKey={yAxis} stroke="var(--chart-1)" fill="var(--chart-1)" fillOpacity={0.2} />
           </AreaChart>
@@ -343,7 +324,7 @@ export function ChartRenderer({ suggestion, data, columns }: ChartRendererProps)
             <CartesianGrid strokeDasharray="3 3" className="opacity-20" />
             <XAxis {...xAxisProps} />
             <YAxis {...yAxisProps} />
-            <Tooltip content={<CustomTooltip />} cursor={{ fill: "var(--muted)", opacity: 0.3 }} />
+            <Tooltip content={<CustomTooltip xAxis={xAxis} />} cursor={{ fill: "var(--muted)", opacity: 0.3 }} />
             <Bar dataKey={yAxis} fill="var(--chart-1)" radius={[4, 4, 0, 0]} />
           </BarChart>
         )}
@@ -352,7 +333,10 @@ export function ChartRenderer({ suggestion, data, columns }: ChartRendererProps)
   );
 }
 
-/** Toolbar for switching chart type and selecting axes. */
+// ---------------------------------------------------------------------------
+// Toolbar
+// ---------------------------------------------------------------------------
+
 function ChartToolbar({
   chartType,
   onTypeChange,
@@ -391,7 +375,7 @@ function ChartToolbar({
         ))}
       </div>
 
-      {/* Axis selectors — formatted column names */}
+      {/* Axis selectors — show formatted column names */}
       <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
         <label className="text-muted-foreground">X:</label>
         <select

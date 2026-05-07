@@ -19,6 +19,7 @@ from ..db import (
     update_message_result,
 )
 from ..genie_client import (
+    _error_result,
     ask_genie,
     get_genie_result,
     poll_genie_status,
@@ -213,20 +214,21 @@ def get_chat_result(
     conv_id: str,
     msg_id: str,
     ws: Dependencies.Client,
-    user_ws: Dependencies.OptionalUserClient,
     space_id: str | None = None,
     ephemeral: bool = False,
 ) -> ChatMessageOut:
     """Fetch full result for a completed message."""
     sid = _resolve_space_id(space_id)
-    # Use user's OBO token for Genie API (user owns the conversation)
-    genie_ws = user_ws or ws
-    result = get_genie_result(
-        ws=genie_ws,
-        space_id=sid,
-        conversation_id=conv_id,
-        message_id=msg_id,
-    )
+    try:
+        result = get_genie_result(
+            ws=ws,
+            space_id=sid,
+            conversation_id=conv_id,
+            message_id=msg_id,
+        )
+    except Exception as e:
+        logger.exception("get_chat_result failed for %s/%s", conv_id, msg_id)
+        return _result_to_response(_error_result(conv_id, e))
     if not ephemeral:
         _persist_message_result(ws, conv_id, msg_id, result)
     return _result_to_response(result)

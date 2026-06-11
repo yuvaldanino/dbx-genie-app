@@ -194,3 +194,55 @@ def build_instructions_from_uc(
     if len(text) > MAX_CHARS:
         text = text[:MAX_CHARS - 20] + "\n…(truncated)"
     return text
+
+
+INSTRUCTION_TITLE = "Data dictionary & query guidance (auto-generated)"
+
+
+def apply_instructions_to_space(ws: WorkspaceClient, space_id: str, text: str) -> bool:
+    """Write text instructions to a live Genie space.
+
+    Uses the internal data-rooms API — the public `PATCH /genie/spaces/{id}`
+    silently ignores `serialized_space.instructions` edits (verified 2026-06-11).
+    Updates the existing TEXT_INSTRUCTION in place (preserving its id) or
+    creates one if the space has none.
+
+    Returns:
+        True if the refetched content matches what was sent.
+    """
+    base = f"/api/2.0/data-rooms/{space_id}/instructions"
+    body = {"title": INSTRUCTION_TITLE, "content": text, "instruction_type": "TEXT_INSTRUCTION"}
+    try:
+        instrs = ws.api_client.do("GET", base).get("instructions", [])
+        existing = [i for i in instrs if i.get("instruction_type") == "TEXT_INSTRUCTION"]
+        if existing:
+            ws.api_client.do("POST", f"{base}/{existing[0]['instruction_id']}", body=body)
+        else:
+            ws.api_client.do("POST", base, body=body)
+        after = ws.api_client.do("GET", base).get("instructions", [])
+        got = next((i.get("content", "") for i in after if i.get("instruction_type") == "TEXT_INSTRUCTION"), "")
+        return got.strip() == text.strip()
+    except Exception as e:
+        logger.warning("apply_instructions_to_space failed for %s: %s", space_id, str(e)[:200])
+        return False
+
+
+def enrich_space_instructions(
+    ws: WorkspaceClient,
+    warehouse_id: str,
+    space_id: str,
+    table_full_names: list[str],
+    company_description: str,
+) -> bool:
+    """Build rich instructions from UC and apply them to the space (best-effort).
+
+    Refuses to downgrade: skips the write when the generated text is thin
+    (tables unreadable / no dictionary).
+    """
+    text = build_instructions_from_uc(ws, warehouse_id, table_full_names, company_description)
+    if "## Data Dictionary" not in text or len(text) < 800:
+        logger.warning("Skipping instruction enrich for %s — thin output (%d ch)", space_id, len(text))
+        return False
+    ok = apply_instructions_to_space(ws, space_id, text)
+    logger.info("Instruction enrich for %s: %s (%d ch)", space_id, "OK" if ok else "FAILED", len(text))
+    return ok

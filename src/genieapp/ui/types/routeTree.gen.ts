@@ -14,6 +14,7 @@ import { Route as AdminRouteImport } from "./../routes/admin"
 import { Route as SidebarRouteRouteImport } from "./../routes/_sidebar/route"
 import { Route as IndexRouteImport } from "./../routes/index"
 import { Route as SidebarTemplatesRouteImport } from "./../routes/_sidebar/templates"
+import { Route as SidebarGenieChatRouteImport } from "./../routes/_sidebar/genie-chat"
 import { Route as SidebarDashboardRouteImport } from "./../routes/_sidebar/dashboard"
 import { Route as SidebarChatRouteImport } from "./../routes/_sidebar/chat"
 
@@ -41,6 +42,11 @@ const SidebarTemplatesRoute = SidebarTemplatesRouteImport.update({
   path: "/templates",
   getParentRoute: () => SidebarRouteRoute,
 } as any)
+const SidebarGenieChatRoute = SidebarGenieChatRouteImport.update({
+  id: "/genie-chat",
+  path: "/genie-chat",
+  getParentRoute: () => SidebarRouteRoute,
+} as any)
 const SidebarDashboardRoute = SidebarDashboardRouteImport.update({
   id: "/dashboard",
   path: "/dashboard",
@@ -58,6 +64,7 @@ export interface FileRoutesByFullPath {
   "/spaces": typeof SpacesRoute
   "/chat": typeof SidebarChatRoute
   "/dashboard": typeof SidebarDashboardRoute
+  "/genie-chat": typeof SidebarGenieChatRoute
   "/templates": typeof SidebarTemplatesRoute
 }
 export interface FileRoutesByTo {
@@ -66,6 +73,7 @@ export interface FileRoutesByTo {
   "/spaces": typeof SpacesRoute
   "/chat": typeof SidebarChatRoute
   "/dashboard": typeof SidebarDashboardRoute
+  "/genie-chat": typeof SidebarGenieChatRoute
   "/templates": typeof SidebarTemplatesRoute
 }
 export interface FileRoutesById {
@@ -76,13 +84,28 @@ export interface FileRoutesById {
   "/spaces": typeof SpacesRoute
   "/_sidebar/chat": typeof SidebarChatRoute
   "/_sidebar/dashboard": typeof SidebarDashboardRoute
+  "/_sidebar/genie-chat": typeof SidebarGenieChatRoute
   "/_sidebar/templates": typeof SidebarTemplatesRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: "/" | "/admin" | "/spaces" | "/chat" | "/dashboard" | "/templates"
+  fullPaths:
+    | "/"
+    | "/admin"
+    | "/spaces"
+    | "/chat"
+    | "/dashboard"
+    | "/genie-chat"
+    | "/templates"
   fileRoutesByTo: FileRoutesByTo
-  to: "/" | "/admin" | "/spaces" | "/chat" | "/dashboard" | "/templates"
+  to:
+    | "/"
+    | "/admin"
+    | "/spaces"
+    | "/chat"
+    | "/dashboard"
+    | "/genie-chat"
+    | "/templates"
   id:
     | "__root__"
     | "/"
@@ -91,6 +114,7 @@ export interface FileRouteTypes {
     | "/spaces"
     | "/_sidebar/chat"
     | "/_sidebar/dashboard"
+    | "/_sidebar/genie-chat"
     | "/_sidebar/templates"
   fileRoutesById: FileRoutesById
 }
@@ -138,6 +162,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof SidebarTemplatesRouteImport
       parentRoute: typeof SidebarRouteRoute
     }
+    "/_sidebar/genie-chat": {
+      id: "/_sidebar/genie-chat"
+      path: "/genie-chat"
+      fullPath: "/genie-chat"
+      preLoaderRoute: typeof SidebarGenieChatRouteImport
+      parentRoute: typeof SidebarRouteRoute
+    }
     "/_sidebar/dashboard": {
       id: "/_sidebar/dashboard"
       path: "/dashboard"
@@ -158,12 +189,14 @@ declare module "@tanstack/react-router" {
 interface SidebarRouteRouteChildren {
   SidebarChatRoute: typeof SidebarChatRoute
   SidebarDashboardRoute: typeof SidebarDashboardRoute
+  SidebarGenieChatRoute: typeof SidebarGenieChatRoute
   SidebarTemplatesRoute: typeof SidebarTemplatesRoute
 }
 
 const SidebarRouteRouteChildren: SidebarRouteRouteChildren = {
   SidebarChatRoute: SidebarChatRoute,
   SidebarDashboardRoute: SidebarDashboardRoute,
+  SidebarGenieChatRoute: SidebarGenieChatRoute,
   SidebarTemplatesRoute: SidebarTemplatesRoute,
 }
 

@@ -10,6 +10,7 @@ import { Loader2 } from "lucide-react";
 interface ChatSearch {
   conversationId?: string;
   spaceId?: string;
+  ask?: string;
 }
 
 export const Route = createFileRoute("/_sidebar/chat")({
@@ -17,11 +18,12 @@ export const Route = createFileRoute("/_sidebar/chat")({
   validateSearch: (search: Record<string, unknown>): ChatSearch => ({
     conversationId: typeof search.conversationId === "string" ? search.conversationId : undefined,
     spaceId: typeof search.spaceId === "string" ? search.spaceId : undefined,
+    ask: typeof search.ask === "string" ? search.ask : undefined,
   }),
 });
 
 function ChatPage() {
-  const { conversationId: initialConvId, spaceId: urlSpaceId } = useSearch({ from: "/_sidebar/chat" });
+  const { conversationId: initialConvId, spaceId: urlSpaceId, ask } = useSearch({ from: "/_sidebar/chat" });
 
   const { data: defaultConfig } = useAppConfig();
   const { data: spaceConfig } = useSpaceConfig(urlSpaceId);
@@ -43,6 +45,7 @@ function ChatPage() {
       spaceId={spaceId}
       config={config}
       initialConversationId={initialConvId}
+      initialQuestion={ask}
     />
   );
 }

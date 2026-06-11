@@ -2,6 +2,19 @@
 
 Changes validated in the component sandbox (`test.html`). Apply to real app once all testing is complete.
 
+## Deployed 2026-06-11: P0 #4 polish sweep
+
+**Problem:** the "janky" feeling — blank lists that pop in, opaque cold-start waits, silent failures, recommended questions buried.
+**Fixes:**
+- Skeletons: Recent tab ("Loading conversation…" + card skeletons), result panel, spaces grid, sidebar tables, dashboard (KPI + chart blocks)
+- Warehouse wake ping on app load (`POST /api/warehouse/wake`, AuthProvider useEffect) + honest `PENDING_WAREHOUSE` copy in useChatFlow STATUS_LABELS
+- sonner toasts wired (recompute failure); create-form surfaces server `detail` (e.g. unsupported-characters 400)
+- Sidebar "Recommended" section (Lightbulb, default open): sample questions → `?ask=` param → QueryWorkspace auto-sends once (strips param; re-click of a different question works via last-asked ref)
+- Feedback 👍/👎 fixed for all spaces (space resolution server-side; MessageBubble passes spaceId, ephemeral threads included)
+- ExportButton hidden in ephemeral Genie Chat (hideExport prop)
+
+**Files:** QueryWorkspace.tsx, useChatFlow.ts, route.tsx (sidebar), chat.tsx, dashboard.tsx, spaces.tsx, index.tsx, MessageBubble.tsx, GenieChatThread.tsx, AuthProvider.tsx, api.ts, types.ts + backend chat.py/spaces.py/models.py
+
 ## Deployed 2026-06-11: Genie Chat mode (P0 #3, PR #1) + follow-up hints (P0 #1, PR #2)
 
 **Genie Chat** (built by parallel Session B — evidence in `docs/worklogs/genie-chat-mode.md`):

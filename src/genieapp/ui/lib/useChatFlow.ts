@@ -24,7 +24,7 @@ const STATUS_LABELS: Record<string, string> = {
   FETCHING_METADATA: "Fetching metadata...",
   FILTERING_CONTEXT: "Analyzing context...",
   ASKING_AI: "Generating SQL...",
-  PENDING_WAREHOUSE: "Waiting for warehouse...",
+  PENDING_WAREHOUSE: "Warehouse warming up — first query can take a minute or two…",
   EXECUTING_QUERY: "Running query...",
   COMPLETED: "Complete",
   FAILED: "Failed",
@@ -65,11 +65,16 @@ export function useChatFlow(options: UseChatFlowOptions = {}) {
   }, [initialConversationId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load conversation messages when navigating from history (skip for ephemeral)
-  const { data: loadedMessages } = useConversationMessages(
+  const { data: loadedMessages, isLoading: historyQueryLoading } = useConversationMessages(
     ephemeral ? undefined : conversationId,
     spaceId,
   );
   const [loadedConvId, setLoadedConvId] = useState<string | undefined>();
+
+  // True while a past conversation's messages are being rebuilt server-side —
+  // lets the UI show skeletons instead of an empty list that pops in later.
+  const isLoadingHistory =
+    !ephemeral && !!conversationId && conversationId !== loadedConvId && historyQueryLoading;
 
   useEffect(() => {
     if (loadedMessages && conversationId && conversationId !== loadedConvId) {
@@ -235,6 +240,7 @@ export function useChatFlow(options: UseChatFlowOptions = {}) {
     messages,
     setMessages,
     isSending,
+    isLoadingHistory,
     conversationId,
     sendMessage,
     scrollRef,

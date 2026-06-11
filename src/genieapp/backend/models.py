@@ -100,6 +100,7 @@ class FeedbackIn(BaseModel):
     conversation_id: str
     message_id: str
     rating: str = Field(description="THUMBS_UP or THUMBS_DOWN")
+    space_id: str | None = None  # resolved server-side from conversation when absent
 
 
 class StarIn(BaseModel):

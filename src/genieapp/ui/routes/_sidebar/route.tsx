@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Collapsible,
   CollapsibleContent,
@@ -34,6 +35,7 @@ import {
   User,
   Settings,
   Sparkles,
+  Lightbulb,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_sidebar")({
@@ -64,6 +66,7 @@ function SidebarLayout() {
   const { data: conversations } = useConversations(spaceId);
   const [expandedTable, setExpandedTable] = useState<string | null>(null);
   const [tablesOpen, setTablesOpen] = useState(true);
+  const [questionsOpen, setQuestionsOpen] = useState(true);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_WIDTH);
   const isResizing = useRef(false);
@@ -187,6 +190,12 @@ function SidebarLayout() {
                 </Button>
               </CollapsibleTrigger>
               <CollapsibleContent className="space-y-0.5 mt-1">
+                {!config &&
+                  [0, 1, 2].map((i) => (
+                    <div key={`tsk-${i}`} className="pl-6 pr-2 py-1.5">
+                      <Skeleton className="h-3.5 w-3/4" />
+                    </div>
+                  ))}
                 {tables?.map((table) => (
                   <div key={table.full_name}>
                     <Button
@@ -212,6 +221,44 @@ function SidebarLayout() {
                 ))}
               </CollapsibleContent>
             </Collapsible>
+
+            {/* Recommended questions — always one click away for presenters */}
+            {config && config.sample_questions.length > 0 && (
+              <Collapsible open={questionsOpen} onOpenChange={setQuestionsOpen}>
+                <CollapsibleTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-between gap-2"
+                  >
+                    <span className="flex items-center gap-2">
+                      <Lightbulb className="h-4 w-4 text-amber-500 dark:text-amber-400" />
+                      Recommended
+                    </span>
+                    <ChevronDown
+                      className={`h-4 w-4 transition-transform ${questionsOpen ? "" : "-rotate-90"}`}
+                    />
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="space-y-0.5 mt-1">
+                  {config.sample_questions.slice(0, 8).map((q) => (
+                    <Link
+                      key={q}
+                      to="/chat"
+                      search={{ ask: q, ...(spaceId ? { spaceId } : {}) }}
+                    >
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full justify-start gap-2 pl-6 text-xs h-auto py-1.5 whitespace-normal text-left leading-snug"
+                        title={q}
+                      >
+                        <span className="line-clamp-2">{q}</span>
+                      </Button>
+                    </Link>
+                  ))}
+                </CollapsibleContent>
+              </Collapsible>
+            )}
 
             {/* Conversation history */}
             {conversations && conversations.length > 0 && (

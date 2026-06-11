@@ -3,7 +3,8 @@
  * right panel with results, bottom input bar.
  */
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { useChatFlow } from "@/lib/useChatFlow";
 import {
   useStarredMessages,
@@ -16,6 +17,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import Markdown from "react-markdown";
 import { mdComponents } from "@/components/apx/md-components";
@@ -72,17 +74,32 @@ function ResultBadge({ type }: { type: "Chart" | "Table" | "Error" | "Pending" |
   );
 }
 
-export function QueryWorkspace({ spaceId, config, initialConversationId }: TemplateProps) {
+export function QueryWorkspace({ spaceId, config, initialConversationId, initialQuestion }: TemplateProps) {
   // Auto-load most recent conversation if none specified in URL
   const { data: conversations } = useConversations(spaceId);
   const effectiveConvId =
     initialConversationId ??
     (conversations && conversations.length > 0 ? conversations[0].conversation_id : undefined);
 
-  const { messages, setMessages, isSending, sendMessage } = useChatFlow({
+  const { messages, setMessages, isSending, isLoadingHistory, sendMessage } = useChatFlow({
     spaceId,
     initialConversationId: effectiveConvId,
   });
+
+  // Auto-send a question passed via ?ask= (recommended-questions panel).
+  // Strip the param immediately so refresh doesn't re-send; track the last
+  // asked question so clicking another recommendation mid-session works.
+  const askedRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (initialQuestion && askedRef.current !== initialQuestion && !isSending) {
+      askedRef.current = initialQuestion;
+      const url = new URL(window.location.href);
+      url.searchParams.delete("ask");
+      window.history.replaceState(null, "", url.toString());
+      sendMessage(initialQuestion);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialQuestion, isSending]);
   const [input, setInput] = useState("");
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   const [savedSelectedIdx, setSavedSelectedIdx] = useState<number | null>(null);
@@ -119,7 +136,8 @@ export function QueryWorkspace({ spaceId, config, initialConversationId }: Templ
           ),
       );
     } catch {
-      // Network failure — keep the existing (expired) state so the button stays.
+      // Keep the existing (expired) state so the button stays — but say so.
+      toast.error("Recompute failed — the warehouse may still be starting. Try again in a minute.");
     } finally {
       setRecomputingIds((prev) => {
         const next = new Set(prev);
@@ -247,6 +265,19 @@ export function QueryWorkspace({ spaceId, config, initialConversationId }: Templ
         <ScrollArea className="flex-1">
           {sidebarTab === "recent" ? (
             <div className="p-3 space-y-2">
+              {isLoadingHistory && messages.length === 0 && (
+                <>
+                  <p className="text-[10px] text-muted-foreground px-1 pb-1">
+                    Loading conversation…
+                  </p>
+                  {[0, 1, 2].map((i) => (
+                    <div key={`sk-${i}`} className="rounded-lg border border-transparent px-3 py-2.5 space-y-2">
+                      <Skeleton className="h-4 w-4/5" />
+                      <Skeleton className="h-3 w-2/5" />
+                    </div>
+                  ))}
+                </>
+              )}
               {expiredCount > 0 && (
                 <Button
                   variant="outline"
@@ -269,11 +300,13 @@ export function QueryWorkspace({ spaceId, config, initialConversationId }: Templ
                 </Button>
               )}
               {messages.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">
-                  <Inbox className="h-8 w-8 mx-auto mb-2 opacity-40" />
-                  <p className="text-xs">No queries yet</p>
-                  <p className="text-[10px] mt-1">Ask a question to get started</p>
-                </div>
+                !isLoadingHistory && (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <Inbox className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                    <p className="text-xs">No queries yet</p>
+                    <p className="text-[10px] mt-1">Ask a question to get started</p>
+                  </div>
+                )
               ) : (
                 messages.map((msg, i) => {
                   const isActive = activeIdx === i;
@@ -446,6 +479,12 @@ export function QueryWorkspace({ spaceId, config, initialConversationId }: Templ
                   recomputingIds.has(activeMsg.response.message_id)
                 }
               />
+            ) : isLoadingHistory ? (
+              <div className="space-y-5">
+                <Skeleton className="h-20 w-full rounded-xl" />
+                <Skeleton className="h-64 w-full rounded-xl" />
+                <Skeleton className="h-8 w-1/3 rounded-md" />
+              </div>
             ) : (
               <div className="flex flex-col items-center justify-center min-h-[400px] text-center">
                 <Inbox className="h-12 w-12 text-muted-foreground/30 mb-3" />

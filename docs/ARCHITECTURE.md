@@ -182,14 +182,14 @@ GRANT app_rw TO "677d1641-521c-4df6-91f4-dacea8be74e7";
 ## Known Issues / Future Work
 - [ ] Deploy strips Lakebase DB resource → GRANT required after each deploy (agent self-serves via psql since 2026-06-11, see OPERATIONS.md; bundle CLI doesn't support postgres resource type yet)
 - [x] ~~History load rebuilds per-message data serially~~ — parallelized 2026-06-11 (ThreadPoolExecutor ≤6 workers in chat.py)
-- [ ] `/chat/feedback` resolves space_id from legacy state.json → silently broken for all non-default spaces (quick win, see PROJECT_STATE.md)
+- [x] ~~`/chat/feedback` broken for non-default spaces~~ — fixed 2026-06-11 (body → conversation → state.json resolution)
 - [x] ~~Degraded instructions~~ — all 25 spaces retuned 2026-06-11; new spaces auto-enrich on register (`instruction_builder.py`). ⚠️ instruction writes use the internal data-rooms API (public PATCH silently ignores them); verify SP-identity write on next pipeline run
 - [x] ~~Parser kept only LAST text attachment~~ — all texts collected; narrative→description, offer→follow_up_text. (Still on legacy non-attachment-scoped query-result endpoint — fine for single-query messages)
 - [ ] Email column in generated data sometimes gets numeric values instead of strings (spec issue)
 - [ ] Formula-derived columns occasionally produce 0 when eval fails (fallback kicks in)
 - [ ] Expired-result recompute re-derives data from saved SQL — regenerated data may differ slightly from the original Genie snapshot
 - [ ] Pipeline notebooks duplicate logic from Python modules (space_creator.py vs notebook cells)
-- [ ] Error toasts in frontend not fully implemented (some errors still show blank screens)
+- [x] ~~Error toasts not implemented~~ — sonner wired 2026-06-11 (recompute, create-space detail); extend opportunistically
 - [ ] Phase 4+5 of Lakebase migration not done (cleanup route-level SQL, RETURNING optimization)
 
 ## Git / Deployment

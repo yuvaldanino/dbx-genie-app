@@ -154,6 +154,8 @@ export function GenieChatThread({ spaceId, config, onNewChat }: GenieChatThreadP
                   question={msg.question}
                   response={msg.response}
                   onAskQuestion={(q) => handleSend(q)}
+                  spaceId={spaceId}
+                  hideExport
                 />
               ) : (
                 <PendingTurn key={`pending-${i}`} question={msg.question} statusText={msg.statusText} />

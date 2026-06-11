@@ -8,4 +8,6 @@ export interface TemplateProps {
   spaceId?: string;
   config: AppConfigOut;
   initialConversationId?: string;
+  /** Question to auto-send once on mount (from the ?ask= URL param). */
+  initialQuestion?: string;
 }

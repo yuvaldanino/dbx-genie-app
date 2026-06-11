@@ -298,16 +298,45 @@ def send_feedback(
     feedback: FeedbackIn,
     ws: Dependencies.Client,
 ) -> dict[str, bool]:
-    """Send thumbs up/down feedback for a Genie response."""
-    state = get_state()
+    """Send thumbs up/down feedback for a Genie response.
+
+    Space resolution: request body → conversation record → state.json. The old
+    state.json-only path silently failed for every non-default space.
+    """
+    space_id = feedback.space_id or ""
+    if not space_id:
+        conv = get_conversation(ws, feedback.conversation_id)
+        space_id = (conv or {}).get("space_id") or ""
+    if not space_id:
+        space_id = get_state().space_id
     success = send_genie_feedback(
         ws=ws,
-        space_id=state.space_id,
+        space_id=space_id,
         conversation_id=feedback.conversation_id,
         message_id=feedback.message_id,
         rating=feedback.rating,
     )
     return {"success": success}
+
+
+# --- Warehouse wake (fire-and-forget warm-up) ---
+
+@router.post("/warehouse/wake", operation_id="wakeWarehouse")
+def wake_warehouse(ws: Dependencies.Client) -> dict[str, bool]:
+    """Kick the SQL warehouse awake in the background (cold start is 1-3 min).
+
+    Called on app load so the warehouse is warming before the first question.
+    """
+    def _ping() -> None:
+        try:
+            from ..db import run_sql
+            run_sql(ws, "SELECT 1", raise_on_error=False)
+        except Exception:
+            logger.debug("warehouse wake ping failed (non-fatal)")
+
+    import threading
+    threading.Thread(target=_ping, daemon=True, name="warehouse-wake").start()
+    return {"ok": True}
 
 
 # --- Conversations (DB-backed) ---

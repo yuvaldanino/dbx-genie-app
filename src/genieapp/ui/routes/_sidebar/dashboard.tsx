@@ -5,7 +5,8 @@
 import { createFileRoute, useSearch } from "@tanstack/react-router";
 import { useSpaceConfig, useSpaceDashboard } from "@/lib/api";
 import { DashboardView } from "@/components/apx/DashboardView";
-import { Loader2, BarChart3 } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { BarChart3 } from "lucide-react";
 
 interface DashboardSearch {
   spaceId?: string;
@@ -24,9 +25,19 @@ function DashboardPage() {
   const { data: dashboard, isLoading: dashLoading } = useSpaceDashboard(spaceId);
 
   if (configLoading || dashLoading) {
+    // Skeleton mirroring the dashboard grid: KPI row + two chart panels.
     return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      <div className="p-6 space-y-4">
+        <Skeleton className="h-7 w-56" />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[0, 1, 2, 3].map((i) => (
+            <Skeleton key={`kpi-${i}`} className="h-24 rounded-xl" />
+          ))}
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Skeleton className="h-72 rounded-xl" />
+          <Skeleton className="h-72 rounded-xl" />
+        </div>
       </div>
     );
   }

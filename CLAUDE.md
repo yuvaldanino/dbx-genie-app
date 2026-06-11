@@ -122,6 +122,7 @@ App state lives in **Lakebase Postgres** (`databricks_postgres`, role `app_rw`).
 | GET | `/api/chat/{conv}/{msg}/result` | Get result |
 | POST | `/api/chat/{conv}/{msg}/recompute` | Re-run saved SQL for expired results |
 | POST | `/api/chat/feedback` | Send feedback |
+| POST | `/api/warehouse/wake` | Background warehouse warm-up ping |
 | GET | `/api/tables` | List tables |
 | GET | `/api/tables/{name}` | Table detail |
 | GET | `/api/conversations` | List conversations (user-scoped) |

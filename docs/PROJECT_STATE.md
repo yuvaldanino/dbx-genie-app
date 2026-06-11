@@ -75,21 +75,22 @@ Root cause chain turned out to be THREE layers, all fixed and verified live (14/
 
 #### ~~3. Embedded "Genie Chat" mode~~ → done, see above. Three modes per space now live: Genie Chat (free conversation), Chat workspace (saved/starred queries, recents), Dashboard (precomputed + drawer).
 
-#### 4. Smoothness / Databricks-ecosystem polish pass
-The "janky" feeling. Sweep for:
-- Loading states everywhere (skeletons not spinners where possible), optimistic UI, transitions
-- Error handling: friendly toasts instead of blank screens or stuck spinners (some errors still swallow silently)
-- Warehouse cold-start: first query after idle takes 1-3 min — show "warehouse warming up" messaging instead of an opaque wait, or fire a warehouse keep-alive/wake ping on app load
-- Visual alignment with Databricks design language (spacing, typography, nav patterns)
-- **Recommended questions always visible**: persistent left-panel list (sidebar section under Tables/History) showing the space's must-answer/sample questions (`sample_questions_json` on the space row) + Genie's suggested follow-ups; click → runs it. Demo presenters lean on this.
+#### 4. Smoothness / Databricks-ecosystem polish pass — ✅ DONE 2026-06-11
+- **Warehouse cold-start UX**: `POST /api/warehouse/wake` fires a background SELECT 1; called once on app load (AuthProvider) so the warehouse warms before the first question. `PENDING_WAREHOUSE` status now says "Warehouse warming up — first query can take a minute or two…"
+- **Skeletons** (no more blank-then-pop): Recent tab while a conversation rebuilds, result panel, spaces grid, sidebar tables, dashboard (KPI row + chart panels)
+- **Errors surfaced**: sonner toasts (already installed) wired to recompute failures; create-space surfaces the server's friendly `detail` instead of axios generic text
+- **Feedback bug FIXED**: 👍/👎 resolves space from body → conversation → state.json (was state.json-only = silently broken for all non-default spaces); MessageBubble passes spaceId for ephemeral threads
+- **ASCII validation**: create-space transliterates smart punctuation, friendly 400 for emoji/non-Latin (was opaque Jobs API 500)
+- **Recommended questions panel**: sidebar section (amber Lightbulb, default open) — sample questions, one click → auto-runs in workspace via `?ask=` param
+- CSV export hidden in ephemeral Genie Chat threads (nothing persisted to export)
 
 ### Quick wins (small, high-visibility — found during P0 #2, 2026-06-11)
 - [x] **Parallelize history load** — DONE 2026-06-11. `get_conversation_messages_endpoint` now rebuilds per-message data via ThreadPoolExecutor (≤6 workers, order-preserving `pool.map`, ownership check unchanged). Was 10-40s serial on long conversations.
-- [ ] **Feedback space_id bug** — `/chat/feedback` (chat.py) resolves space_id from legacy `state.json`; `FeedbackIn` has no space_id field → thumbs up/down silently fails (or hits wrong space) for every space except the legacy default. Add `space_id` to FeedbackIn + frontend pass-through. ~15 lines.
+- [x] **Feedback space_id bug** — DONE 2026-06-11 (P0 #4): server resolves body → conversation → state.json.
 
 ### P1 — Worth doing, small
 - [ ] **Health probe → Slack** — user HAS a webhook ready (Slack app created; ask user for the URL, store in Databricks secret scope, never in git). Every 30 min: ephemeral chat flow against a shared space → post ✅ healthy / ⚠️ degraded / ❌ down with latency + error. Scheduled Databricks job (`resources/`), ~150-line script.
-- [ ] **ASCII input validation** — `spaces.py:459` Jobs API rejects non-Latin1 (curly quotes, emojis) → 500. Validate/transliterate in POST /api/spaces, friendly 400. ~20 lines.
+- [x] **ASCII input validation** — DONE 2026-06-11 (P0 #4): transliterate + friendly 400 in POST /api/spaces.
 
 ### P2 — Later (explicitly deprioritized by user)
 - [ ] Better dashboard ("would be sick" — but after P0)

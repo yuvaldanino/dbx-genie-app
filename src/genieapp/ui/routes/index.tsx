@@ -135,7 +135,11 @@ function LandingPage() {
       setError("Pipeline timed out. Check the job in Databricks.");
       setIsCreating(false);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to start pipeline");
+      // Surface the server's friendly detail (e.g. the unsupported-characters
+      // 400) instead of axios's generic "Request failed with status code 400".
+      const detail =
+        (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setError(detail || (e instanceof Error ? e.message : "Failed to start pipeline"));
       setIsCreating(false);
     }
   }, [companyName, description, resolvedLogoUrl, isCreating, navigate]);

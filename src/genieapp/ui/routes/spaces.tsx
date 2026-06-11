@@ -10,6 +10,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Sparkles,
   Plus,
@@ -207,8 +208,19 @@ function SpacesPage() {
 
         {/* Spaces grid */}
         {isLoading ? (
-          <div className="text-center text-muted-foreground py-12">
-            Loading spaces...
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[0, 1, 2, 3, 4, 5].map((i) => (
+              <Card key={`sk-${i}`} className="bg-card/80">
+                <CardContent className="py-6 space-y-3">
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="h-10 w-10 rounded-md" />
+                    <Skeleton className="h-5 w-2/3" />
+                  </div>
+                  <Skeleton className="h-3.5 w-full" />
+                  <Skeleton className="h-3.5 w-4/5" />
+                </CardContent>
+              </Card>
+            ))}
           </div>
         ) : !spaces || spaces.length === 0 ? (
           <Card className="bg-card/80 backdrop-blur-sm">

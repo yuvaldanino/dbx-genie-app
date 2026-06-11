@@ -34,6 +34,10 @@ interface MessageBubbleProps {
   question: string;
   response: ChatMessageOut;
   onAskQuestion?: (question: string) => void;
+  /** Needed for feedback on ephemeral threads (no conversation row to resolve from). */
+  spaceId?: string;
+  /** Hide CSV export (ephemeral threads have nothing persisted to export). */
+  hideExport?: boolean;
 }
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -43,7 +47,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   RATE_LIMITED: "Too many requests. Please wait a moment.",
 };
 
-export function MessageBubble({ question, response, onAskQuestion }: MessageBubbleProps) {
+export function MessageBubble({ question, response, onAskQuestion, spaceId, hideExport }: MessageBubbleProps) {
   const [sqlExpanded, setSqlExpanded] = useState(false);
   const [chartVisible, setChartVisible] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -65,6 +69,7 @@ export function MessageBubble({ question, response, onAskQuestion }: MessageBubb
       conversation_id: response.conversation_id,
       message_id: response.message_id,
       rating,
+      ...(spaceId ? { space_id: spaceId } : {}),
     });
   };
 
@@ -246,7 +251,7 @@ export function MessageBubble({ question, response, onAskQuestion }: MessageBubb
                     </div>
                   )}
                 </div>
-                {response.row_count > 0 && (
+                {response.row_count > 0 && !hideExport && (
                   <ExportButton conversationId={response.conversation_id} />
                 )}
               </div>

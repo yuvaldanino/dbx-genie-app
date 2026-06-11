@@ -80,6 +80,8 @@ export interface FeedbackIn {
   conversation_id: string;
   message_id: string;
   rating: "POSITIVE" | "NEGATIVE";
+  /** Optional — server resolves from conversation when absent (needed for ephemeral threads). */
+  space_id?: string;
 }
 
 export interface TableInfoOut {
@@ -210,6 +212,15 @@ export async function recomputeMessage(
     `/chat/${conversationId}/${messageId}/recompute`,
   );
   return data;
+}
+
+/** Fire-and-forget warehouse warm-up ping (called once on app load). */
+export async function wakeWarehouse(): Promise<void> {
+  try {
+    await api.post("/warehouse/wake");
+  } catch {
+    // Best-effort — never bother the user about it.
+  }
 }
 
 export async function listTables(): Promise<TableInfoOut[]> {

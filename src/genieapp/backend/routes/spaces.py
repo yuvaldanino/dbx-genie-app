@@ -483,6 +483,34 @@ def debug_spaces(ws: Dependencies.Client) -> dict:
 
 # --- Space creation (pipeline trigger) ---
 
+_LATIN1_REPLACEMENTS = {
+    "‘": "'", "’": "'", "“": '"', "”": '"',
+    "–": "-", "—": "-", "…": "...", " ": " ",
+}
+
+
+def _force_latin1(text: str, field: str) -> str:
+    """Transliterate smart punctuation; 400 on remaining non-Latin-1 chars.
+
+    The Jobs API rejects non-Latin-1 notebook params with an opaque 500
+    ("Only Latin1 (ASCII)") — catch it here with a friendly message instead.
+    """
+    import unicodedata
+    for bad, good in _LATIN1_REPLACEMENTS.items():
+        text = text.replace(bad, good)
+    text = unicodedata.normalize("NFKD", text)
+    text = "".join(c for c in text if not unicodedata.combining(c))
+    try:
+        text.encode("latin-1")
+    except UnicodeEncodeError:
+        bad_chars = "".join(sorted({c for c in text if ord(c) > 255})[:8])
+        raise HTTPException(
+            status_code=400,
+            detail=f"{field} contains unsupported characters ({bad_chars}) — emojis and non-Latin text can't be used.",
+        )
+    return text
+
+
 @router.post("/spaces", response_model=CreateSpaceOut, operation_id="createSpace")
 def create_space_pipeline(
     req: CreateSpaceIn,
@@ -490,19 +518,22 @@ def create_space_pipeline(
 ) -> CreateSpaceOut:
     """Trigger the DABs pipeline to create a new Genie Space."""
     job_id = 381399907081683
+    company_name = _force_latin1(req.company_name, "Company name")
+    description = _force_latin1(req.description, "Description")
+    questions = _force_latin1(req.must_answer_questions or "", "Questions")
     try:
         run = ws.jobs.run_now(
             job_id=job_id,
             notebook_params={
                 "catalog": CATALOG,
                 "schema": SCHEMA,
-                "company_name": req.company_name,
-                "company_description": req.description,
+                "company_name": company_name,
+                "company_description": description,
                 "logo_url": req.logo_url or "",
                 "warehouse_id": WAREHOUSE_ID,
                 "databricks_host_id": "7474655921234161",
                 "llm_model": "opendoor-claude-opus-46",
-                "must_answer_questions": req.must_answer_questions or "",
+                "must_answer_questions": questions,
             },
         )
         return CreateSpaceOut(run_id=str(run.run_id))

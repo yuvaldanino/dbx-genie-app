@@ -131,6 +131,18 @@ App state lives in **Lakebase Postgres** (`databricks_postgres`, role `app_rw`).
 | GET | `/api/jobs/{run_id}` | Job status |
 | POST | `/api/images/upload` | Upload image |
 | GET | `/api/images/{id}` | Get image |
+| GET | `/api/chat/starred` | Starred messages (user+space scoped) |
+| PATCH | `/api/chat/{conv}/{msg}/star` | Toggle message star |
+| POST | `/api/spaces/register` | Register pipeline-created space |
+| GET | `/api/spaces/{id}/dashboard` | Pre-computed dashboard panels |
+| GET | `/api/spaces/debug` | Debug info |
+| GET | `/api/admin/check` | Is current user admin |
+| GET | `/api/admin/stats` | Admin KPIs |
+| GET | `/api/admin/usage-trend` | Usage over time |
+| GET | `/api/admin/users` | All users |
+| GET | `/api/admin/spaces` | All spaces (admin view) |
+| PATCH | `/api/admin/spaces/{id}/shared` | Toggle space shared flag |
+| GET | `/api/admin/lakebase-test` | Lakebase connectivity test (exposes PG env) |
 
 ## Development Commands
 

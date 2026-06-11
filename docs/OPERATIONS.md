@@ -1,6 +1,8 @@
 # OPERATIONS.md — Deploy, Test, and Recovery Procedures
 
 > Everything an agent needs to operate this app autonomously.
+>
+> **Doc map**: this file = deploy/test/recovery · [`PROJECT_STATE.md`](PROJECT_STATE.md) = state/bugs/roadmap · [`ARCHITECTURE.md`](ARCHITECTURE.md) = system design + data-store/services map · [`../CLAUDE.md`](../CLAUDE.md) = hard rules + dev commands
 
 ## Deploy
 

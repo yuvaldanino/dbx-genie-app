@@ -2,6 +2,8 @@
 
 > **Audience**: A fresh Claude session picking up this project on the `agent-overhaul` branch.
 > **Last updated**: 2026-06-11. Baseline tag: `v2-stable` (rollback: `git checkout v2-stable`).
+>
+> **Doc map**: this file = state/bugs/roadmap · [`OPERATIONS.md`](OPERATIONS.md) = deploy/test/recovery · [`ARCHITECTURE.md`](ARCHITECTURE.md) = system design + complete data-store/services/auth map · [`UI_UPDATES.md`](UI_UPDATES.md) = UI change log + sandbox-first pattern · [`../CLAUDE.md`](../CLAUDE.md) = hard rules, dev commands, full API table · `archive/` = historical background only
 
 ## What this app is
 
@@ -41,7 +43,7 @@ All endpoints healthy as of last verification (2026-06-11):
 
 ### Tier 1 — Reliability (do first)
 - [x] Pool token refresh (deployed, verified)
-- [ ] **Automate post-deploy GRANT** (see OPERATIONS.md for the command to automate)
+- [ ] **Automate post-deploy GRANT** — psql command is documented in OPERATIONS.md but **NOT YET VERIFIED** (sandbox lacked psql). First: verify it works, then wire into deploy.sh as final step. Until then the user runs it manually.
 - [ ] **Health probe job** — every 30 min, full chat flow against a shared space, post status to Slack (user is getting webhook approved; design exists in git history of plan files: ephemeral chat → status → result → Slack webhook with ✅/⚠️/❌)
 - [ ] ASCII input validation (bug #1)
 - [ ] Fix `/conversations/{id}` OBO (bug #2)

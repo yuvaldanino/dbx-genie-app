@@ -1,6 +1,8 @@
 # Genie-rator Architecture & Current State
 
-## Last Updated: April 28, 2026
+## Last Updated: June 11, 2026
+
+> Doc map: [`PROJECT_STATE.md`](PROJECT_STATE.md) = state/bugs/roadmap · [`OPERATIONS.md`](OPERATIONS.md) = deploy/test/recovery · [`UI_UPDATES.md`](UI_UPDATES.md) = UI change log · `../CLAUDE.md` = hard rules + dev commands
 
 ## What This App Does
 Multi-user Databricks App that generates branded Genie Spaces with custom data. Users describe a company → LLM designs schema → LLM generates data specs → Python generates rows → creates UC tables → creates Genie Space with embedded chat + dashboards.
@@ -73,21 +75,59 @@ scripts/pipeline/
   04_create_dashboard.ipynb     # Step 4: LLM dashboard panel design + SQL execution
 ```
 
-## Database: Lakebase Postgres
-- **Host**: ep-flat-haze-d2mzy9ui.database.us-east-1.cloud.databricks.com
-- **Database**: databricks_postgres
-- **Schema**: public
-- **Tables**: users, spaces, conversations, messages, images, feedback
-- **Auth**: Service principal OAuth JWT via `ws.config.authenticate()`
-- **Connection**: psycopg2 pool in `pg.py`, auto-init on first use
-- **Deploy quirk**: `databricks bundle deploy` strips the Database resource → deploy.sh re-adds it via API PATCH → need to run `GRANT app_rw TO "677d1641-521c-4df6-91f4-dacea8be74e7"` after each deploy
+## Data Stores — the complete map
 
-## Database: Delta Tables (UC)
-- **Catalog**: yd_launchpad_final_classic_catalog
-- **Schema**: genie_app
-- **Tables**: sessions (legacy pipeline metadata), generated company tables (per-space analytics data)
-- **Warehouse**: fc62b388f737b2d3 (yd-sql-warehouse)
-- **Used for**: Pipeline data generation, Genie SQL re-execution, session fallback
+The app stores data in FIVE places. Know which is which:
+
+### 1. Lakebase Postgres (PRIMARY app state)
+- **Host**: ep-flat-haze-d2mzy9ui.database.us-east-1.cloud.databricks.com · db `databricks_postgres` · schema `public`
+- **Tables**: `users`, `spaces`, `conversations`, `messages` (incl. `is_starred`/`starred_by`), `feedback`
+- **Access**: ALL app-state reads/writes go through `pg.execute_query`/`pg.execute_write` (called from `db.py`)
+- **Connection pool** (`pg.py`): mints a fresh OAuth token per NEW connection (30-min token cache), evicts connections >50 min old, validates with SELECT 1 only when idle >30s, pre-warms 2 at init. This design exists because of two production outages — see PROJECT_STATE.md incident history. **Do not regress to a startup-captured token.**
+- **Deploy quirk**: bundle deploy strips the Database resource → deploy.sh re-adds via API PATCH → SP loses `app_rw` role → **manual GRANT required after every deploy** (see OPERATIONS.md)
+
+### 2. UC Delta tables (legacy + pipeline data)
+- **Catalog**: `yd_launchpad_final_classic_catalog`, schema `genie_app`
+- **Tables**: `sessions` (legacy pipeline metadata, still read as a spaces fallback), per-space generated analytics tables (the actual demo data Genie queries)
+- **⚠️ Shadow tables**: `ensure_tables()` (db.py:86) still creates Delta twins of `users`/`spaces`/`conversations`/`messages`/`images`/`feedback` at startup for backward compat. **These Delta twins are NOT used by app reads/writes** — Postgres is authoritative. Don't be confused by them; candidates for removal.
+- **Access**: SQL Statements API via `run_sql()` (db.py:38)
+
+### 3. UC Volumes (binary/file storage)
+- `/Volumes/{catalog}/genie_app/images/` — uploaded logos (routes/upload.py); metadata in Delta `images` table
+- `/Volumes/{catalog}/{schema}/raw_data/state.json` — pipeline writes per-space state; also data-gen logs
+
+### 4. state.json (legacy single-space fallback)
+- Loaded by `app_config.get_state()` from UC Volume (or `STATE_FILE_PATH` env)
+- **Fallback chain for spaces**: Postgres `spaces` → Delta `sessions` → state.json (this is why a broken Postgres shows only "Acme Corporation")
+- Also used by `_resolve_space_id()` in chat.py when no space_id is passed
+
+### 5. In-memory caches (db.py:29-31)
+- `_user_cache` TTL 300s, `_space_list_cache` TTL 30s — explains why changes can take ≤30s to appear in space lists
+- Frontend: `localStorage` for theme preference only
+
+## Warehouse IDs (there are several — don't mix them up)
+
+| ID / source | Where | Used for |
+|---|---|---|
+| `fc62b388f737b2d3` | hardcoded `db.py:19` | App runtime SQL: sessions reads, Delta DDL, Genie SQL re-execution |
+| lookup "Serverless Starter Warehouse" | `databricks.yml` | Bundle deploy resolves at deploy time; deploy.sh grants + app resource use this (`551addcb4415adb7` currently) |
+| `warehouse_id` column | Postgres `spaces` rows | Per-space override, passed to pipeline |
+| `551addcb4415adb7` | `router.py` (dead code) | Ignore |
+
+## External Services & Auth Model
+
+**Two client identities** (core/_defaults.py): `ws` = app service principal (SP); `user_ws` = per-request OBO from `X-Forwarded-Access-Token`.
+
+| Service | Client | Where | Notes |
+|---|---|---|---|
+| Genie API (`ws.genie.*`) | **SP ONLY** | genie_client.py | OBO tokens lack the `genie` scope → 403. Hard rule. |
+| SQL Statements API | SP | db.py, genie_client.py | warehouse `fc62b388f737b2d3` |
+| Jobs API (`run_now`, `get_run`) | SP | routes/spaces.py | Triggers create_space_job; params must be ASCII (known bug) |
+| Statement Execution API | SP | genie_client.py:249 | Fetch non-inline Genie result data |
+| UC Tables API (`ws.tables.get`) | SP | genie_client.py | Table detail for sidebar |
+| Files API (`ws.files.*`) | SP | app_config.py, upload.py | state.json + images |
+| AI Gateway (OpenAI SDK) | PAT token | pipeline/*.py | `https://{host}.ai-gateway.cloud.databricks.com/mlflow/v1`, model `opendoor-claude-opus-46`. Pipeline-only, not runtime. |
+| BYOG validation | OBO (intentional) | spaces.py:149 | Verifies USER can access the space; UI entry removed, path mostly dead |
 
 ## Data Generation Pipeline (Current: Spec-Based v3)
 ```
@@ -146,7 +186,9 @@ GRANT app_rw TO "677d1641-521c-4df6-91f4-dacea8be74e7";
 - [ ] Phase 4+5 of Lakebase migration not done (cleanup route-level SQL, RETURNING optimization)
 
 ## Git / Deployment
-- **Branch**: v1-release (main working branch)
-- **Derek's repo**: github.com/dbderek/databricks-genie-app (v4 = latest push)
+- **Branches**: `main` = stable (tag `v2-stable` = rollback point), `agent-overhaul` = active development
+- **Repo**: github.com/yuvaldanino/dbx-genie-app (push requires `gh auth switch --user yuvaldanino`)
+- **Derek's fork**: github.com/dbderek/databricks-genie-app (historical, remotes derek/v1-v4)
 - **App URL**: https://genieapp-dev-7474655921234161.aws.databricksapps.com
-- **Workspace**: fevm-yd-launchpad-final-classic
+- **Workspace**: fevm-yd-launchpad-final-classic (profile `vm`)
+- Deploy procedure + required env: see [`OPERATIONS.md`](OPERATIONS.md)

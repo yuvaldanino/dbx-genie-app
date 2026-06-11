@@ -2,6 +2,17 @@
 
 Changes validated in the component sandbox (`test.html`). Apply to real app once all testing is complete.
 
+## Deployed 2026-06-11: Genie Chat mode (P0 #3, PR #1) + follow-up hints (P0 #1, PR #2)
+
+**Genie Chat** (built by parallel Session B — evidence in `docs/worklogs/genie-chat-mode.md`):
+- New sidebar nav "Genie Chat" (Sparkles icon) → `/genie-chat?spaceId=…`
+- Ephemeral ChatGPT-style thread: one continuous conversation_id, nothing persisted, "New chat" remounts via key bump
+- Composes MessageBubble + useChatFlow unmodified; own `GenieChatThread.tsx` (pending bubble w/ typing dots, branded empty state, starter chips, Enter/Shift+Enter)
+- Scroll fix: `overscroll-contain` + `min-h-0` so the page never bounces past the input
+- Dev-proxy testing pattern: `DEV_API_TARGET`/`DEV_API_TOKEN` env vars on vite dev → live app (see PARALLEL_PLAN Session B brief)
+
+**Follow-up hints** (parity parser fix): `description` = the actual narrative answer; Genie's "Would you prefer…?" offer renders as a subtle 💡 italic line in QueryWorkspace + MessageBubble (previously it randomly REPLACED the answer).
+
 ## Deployed 2026-06-11: Recompute for expired results (P0 #2)
 
 **Problem:** Old conversations showed text+SQL but no charts/data (expired Genie results + broken fallbacks).

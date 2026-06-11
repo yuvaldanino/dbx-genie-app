@@ -14,12 +14,12 @@ Live app: https://genieapp-dev-7474655921234161.aws.databricksapps.com
 
 ## Current state: WORKING and verified
 
-All endpoints healthy as of last verification (2026-06-11, post P0 #2 deploy, commit `d1f0192`):
-- Smoke: health/users/spaces/conversations all 200, 16 spaces
-- Full ephemeral chat flow: COMPLETED, rows>0, chart suggestion
-- Old-conversation history: 14/15 completed messages return full data (was 3/15 before the fix); the 1 is a legit 0-row query
-- App SP now has real UC grants (catalog-level USE CATALOG/USE SCHEMA/SELECT + genie_app MODIFY + volume RW) — it had NONE before 2026-06-11
-- Known UX cost: history load rebuilds message data serially → 10-40s for long conversations (fix = parallelize, see Quick wins)
+As of 2026-06-11, post-integration of PR #1 (Genie Chat) + PR #2 (parity) into `agent-overhaul` (merge `412f598`):
+- **P0 #1, #2, #3 are DONE and live.** P0 #4 (polish sweep) remains.
+- Smoke green (16 spaces), history loads ~2s/conversation with full data (14/16 completed-with-SQL; was 3/15 pre-fix), chat flow green
+- All 25 Genie spaces carry rich auto-generated instructions; new spaces auto-enrich on register
+- App SP has real UC grants (it had NONE before 2026-06-11 — deploy.sh grant JSON was broken since inception)
+- The parallel two-session experiment worked: zero merge conflicts, both worklogs in `docs/worklogs/`
 
 ## Production incident history (read this — patterns repeat)
 
@@ -44,7 +44,19 @@ The two biggest user-reported problems, verbatim:
 
 ### P0 — The big four (work these first)
 
-#### 1. Result-quality parity with native Genie
+#### 1. Result-quality parity with native Genie — ✅ DONE 2026-06-11 (PR #2)
+Diagnosis-driven (evidence: `docs/worklogs/genie-parity.md`, probe: `scripts/parity_probe.py`). Verdicts: SQL generation parity was FINE; context depth harmless (auto-resume stays). The real gaps, all fixed:
+- **All 25 spaces were effectively uninstructed** → `pipeline/instruction_builder.py` generates rich instructions from live UC metadata (real types, profiled values, FK joins, date coverage); `scripts/retune_spaces.py` applied to all 25 (verified); **new spaces auto-enrich on `/api/spaces/register`** (background, downgrade-guarded)
+- **Parser kept only the LAST text attachment** → UI randomly showed Genie's "Would you prefer…?" offer INSTEAD of the answer. Now: all texts collected, narrative→`description`, offer→`follow_up_text` (rendered as 💡 hint in QueryWorkspace + MessageBubble)
+- ⚠️ The public `PATCH /genie/spaces/{id}` **silently ignores instruction edits** — instruction writes go through the internal data-rooms API (see instruction_builder.py docstring)
+- Measured: "revenue this year" now clamps to real data bounds (was: empty garbage); date-trap class of questions fixed
+- Deferred to later: generated-data realism improvements (assess demo quality first)
+- Verify on next pipeline run: data-rooms instruction write as the app SP (retunes ran as the user)
+
+#### 3. Embedded "Genie Chat" mode — ✅ DONE 2026-06-11 (PR #1, built by parallel Session B)
+New sidebar nav "Genie Chat" → `/genie-chat?spaceId=…` — ephemeral ChatGPT-style thread per space (continuous conversation_id, not persisted, New-chat resets via key bump). `GenieChatThread.tsx` composes MessageBubble/useChatFlow without modifying them. Evidence: `docs/worklogs/genie-chat-mode.md`.
+
+#### (original diagnosis notes for #1, kept for history)
 The same space answers better at databricks.com/genie than through the app. Code-reading findings (2026-06-11) updated this diagnosis plan:
 - **Conversation context — hypothesis REVERSED by code reading**: `useChatFlow.ts` DOES reuse `conversation_id`, and QueryWorkspace auto-resumes the user's most recent conversation on page load (`QueryWorkspace.tsx:59-62`). The risk is the opposite of what was assumed: one ever-growing conversation accumulating weeks of stale demo context that pollutes new questions. A/B test live: same question in fresh vs long-resumed conversation, native vs app.
 - **Genie space instructions — CONFIRMED broken, concrete fix known**: `build_genie_instructions` (notebook 03 + `space_creator.py`) keys on the old `faker`/`args` schema format, but `schema_designer.py` v3 emits `type`/`references`. Result for every v3 space: all columns listed as STRING, Relationships section always empty, Categorical Values always empty, generic query tips. Fix the builder for v3 format + **retune the ~16 existing spaces** by PATCHing their live instructions (user approved 2026-06-11; test on one space, verify before/after).
@@ -61,13 +73,7 @@ Root cause chain turned out to be THREE layers, all fixed and verified live (14/
 - ✅ `POST /api/chat/{conv}/{msg}/recompute` (re-runs persisted sql_text, no Genie round-trip) + QueryWorkspace UI: per-message Recompute button, amber "Expired" badge, "Recompute all (N)" in Recent tab. These are now the *recovery* layer — with grants fixed, history re-fetch mostly self-heals inline.
 - **Follow-up (open)**: history load re-fetches messages serially — 40s for a 13-message conversation. Parallelize per-message fetch in `get_conversation_messages_endpoint` (ThreadPoolExecutor) → ~max(single fetch).
 
-#### 3. Embedded "Genie Chat" mode (new nav item)
-A continuous, ChatGPT-style conversation with the space — like native Genie — alongside the existing save-each-query workspace.
-- New sidebar nav button "Genie Chat" → new route `ui/routes/_sidebar/genie-chat.tsx`
-- Implementation: reuse the existing backend entirely — `chat/start` already accepts `conversation_id` for continuation and `ephemeral: true` to skip persistence. The new UI keeps one conversation_id for the session and renders a scrolling thread (MessageBubble components exist).
-- Not persisted: each app visit starts a fresh thread (per user decision). No DB changes needed.
-- Do NOT iframe the actual Databricks Genie page — app auth headers/X-Frame-Options will fight you; the API path above gives the same experience in-brand.
-- Result: three modes per space — Genie Chat (free conversation), Chat workspace (saved/starred queries, recents), Dashboard (precomputed + drawer).
+#### ~~3. Embedded "Genie Chat" mode~~ → done, see above. Three modes per space now live: Genie Chat (free conversation), Chat workspace (saved/starred queries, recents), Dashboard (precomputed + drawer).
 
 #### 4. Smoothness / Databricks-ecosystem polish pass
 The "janky" feeling. Sweep for:

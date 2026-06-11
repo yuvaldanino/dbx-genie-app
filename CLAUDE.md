@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-> **⚠️ PARALLEL PHASE ACTIVE (since 2026-06-11)**: two sessions work concurrently — A: `feat/genie-parity` (main checkout), B: `feat/genie-chat-mode` (worktree `../dbx-genie-app-chatmode`). Contract + file ownership: **`docs/worklogs/PARALLEL_PLAN.md`** — read it before changing anything. Shared docs (this file included) are frozen on feature branches.
+> Parallel phase 2026-06-11 CONCLUDED — both feature branches merged (PR #1 Genie Chat, PR #2 parity). `docs/worklogs/` kept as history; `docs/worklogs/PARALLEL_PLAN.md` is the reusable template if we parallelize again.
 
 ## START HERE (handoff docs)
 
@@ -70,6 +70,7 @@ backend/
 │   └── export.py           # Conversation export
 ├── router.py               # Legacy monolithic router (dead code, kept for reference)
 └── pipeline/               # Data generation pipeline
+    └── instruction_builder.py  # Rich Genie instructions from live UC metadata (+ data-rooms apply)
 ```
 
 ### Database Schema
@@ -93,6 +94,7 @@ App state lives in **Lakebase Postgres** (`databricks_postgres`, role `app_rw`).
 - `ui/components/apx/PreferencesPanel.tsx` — Theme + default template preferences
 - `ui/components/apx/TemplateRenderer.tsx` — Lazy-loads correct template by templateId
 - `ui/routes/_sidebar/chat.tsx` — Main chat page (uses useChatFlow)
+- `ui/routes/_sidebar/genie-chat.tsx` + `ui/components/apx/genie-chat/` — Genie Chat mode (ephemeral ChatGPT-style thread)
 - `ui/routes/_sidebar/templates.tsx` — Template picker (preview + apply to space)
 - `ui/components/apx/template-testing/` — 5 demo templates with mock data
 

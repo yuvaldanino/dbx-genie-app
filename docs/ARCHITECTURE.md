@@ -43,6 +43,7 @@ src/genieapp/
       export.py               # Conversation export
     pipeline/
       run.py                  # Pipeline orchestrator (schema → data → tables → genie space)
+      instruction_builder.py  # Rich Genie instructions from live UC metadata; applies via data-rooms API
       schema_designer.py      # LLM schema design (3-4 tables from company description)
       data_generator_llm.py   # Spec-based data gen (LLM specs → Python rows, parallel)
       data_generator.py       # Old Faker-based generator (unused, kept for reference)
@@ -57,6 +58,7 @@ src/genieapp/
       _sidebar/
         route.tsx             # Sidebar layout with nav, tables, history
         chat.tsx              # Chat page (QueryWorkspace)
+        genie-chat.tsx        # Genie Chat mode (ephemeral continuous thread)
         dashboard.tsx         # Dashboard page (pre-computed panels + Genie drawer)
     components/apx/
       ChartRenderer.tsx       # Recharts wrapper with chart type/axis controls
@@ -181,8 +183,8 @@ GRANT app_rw TO "677d1641-521c-4df6-91f4-dacea8be74e7";
 - [ ] Deploy strips Lakebase DB resource → GRANT required after each deploy (agent self-serves via psql since 2026-06-11, see OPERATIONS.md; bundle CLI doesn't support postgres resource type yet)
 - [x] ~~History load rebuilds per-message data serially~~ — parallelized 2026-06-11 (ThreadPoolExecutor ≤6 workers in chat.py)
 - [ ] `/chat/feedback` resolves space_id from legacy state.json → silently broken for all non-default spaces (quick win, see PROJECT_STATE.md)
-- [ ] `build_genie_instructions` keys on old `faker` schema format → degraded instructions for all v3 spaces (P0 #1, fix + retune approved)
-- [ ] `_parse_genie_response` keeps only the LAST text/query attachment; uses legacy non-attachment-scoped query-result endpoint (P0 #1)
+- [x] ~~Degraded instructions~~ — all 25 spaces retuned 2026-06-11; new spaces auto-enrich on register (`instruction_builder.py`). ⚠️ instruction writes use the internal data-rooms API (public PATCH silently ignores them); verify SP-identity write on next pipeline run
+- [x] ~~Parser kept only LAST text attachment~~ — all texts collected; narrative→description, offer→follow_up_text. (Still on legacy non-attachment-scoped query-result endpoint — fine for single-query messages)
 - [ ] Email column in generated data sometimes gets numeric values instead of strings (spec issue)
 - [ ] Formula-derived columns occasionally produce 0 when eval fails (fallback kicks in)
 - [ ] Expired-result recompute re-derives data from saved SQL — regenerated data may differ slightly from the original Genie snapshot

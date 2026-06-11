@@ -4,14 +4,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## START HERE (handoff docs)
 
-- **`PROJECT_STATE.md`** — current state, incident history, known bugs, prioritized roadmap, working agreements
-- **`OPERATIONS.md`** — deploy procedure, the CRITICAL post-deploy GRANT, verification suite, failure signatures
+- **`docs/PROJECT_STATE.md`** — current state, incident history, known bugs, prioritized roadmap, working agreements
+- **`docs/OPERATIONS.md`** — deploy procedure, the CRITICAL post-deploy GRANT, verification suite, failure signatures
+- **`docs/ARCHITECTURE.md`** — system design and data flow (current as of Apr 2026)
+- **`docs/UI_UPDATES.md`** — UI change log + the sandbox-first testing pattern
+- `docs/archive/` — historical docs (migration notes, old ADRs, past reviews); read only if you need background
 
 ## Hard Rules
 
-1. **After EVERY deploy, the Lakebase GRANT must run** before the app works (see OPERATIONS.md). Verify with `/api/spaces` returning >1 space.
+1. **After EVERY deploy, the Lakebase GRANT must run** before the app works (see docs/OPERATIONS.md). Verify with `/api/spaces` returning >1 space.
 2. **Never use the user OBO client for `ws.genie.*` calls** — OBO tokens lack the `genie` scope (403). Use the SP client (`ws`).
-3. **Verify against the live app with curl after every deploy** (smoke + chat flow, see OPERATIONS.md). Do not declare success without it.
+3. **Verify against the live app with curl after every deploy** (smoke + chat flow, see docs/OPERATIONS.md). Do not declare success without it.
 4. **Database is shared across git branches** — Lakebase schema changes must be backward compatible.
 5. **`main` is protected by convention** — experimental work goes on `agent-overhaul`. Rollback baseline: tag `v2-stable`.
 6. When touching auth/tokens/connections, ask: what happens when this credential expires mid-flight?
@@ -33,7 +36,7 @@ A multi-user Databricks application for creating, connecting, and chatting with 
 - **Frontend**: React + Vite + TanStack Router (file-based routing) + shadcn/ui, code in `src/genieapp/ui/`
 - **Backend serves frontend**: Static build from `src/genieapp/__dist__/` at `/`, API at `/api`
 - **Deployment**: Databricks Apps via Databricks Asset Bundles (`databricks.yml`)
-- **Database**: UC Delta tables via SQL Statements API (not Lakebase Postgres)
+- **Database**: Lakebase Postgres for app state (users, spaces, conversations, messages) via `pg.py` token-refreshing pool; UC Delta tables remain for `sessions` (legacy fallback) and pipeline data
 - **Auth**: Databricks Apps injects identity headers (`X-Forwarded-User`, `X-Forwarded-Email`, `X-Forwarded-Access-Token`)
 
 ### Backend Structure
@@ -42,7 +45,8 @@ A multi-user Databricks application for creating, connecting, and chatting with 
 backend/
 ├── app.py                  # Entry point — creates FastAPI app, runs ensure_tables on startup
 ├── app_config.py           # state.json loader (legacy single-space fallback)
-├── db.py                   # Centralized data access layer (UC Delta tables)
+├── db.py                   # Centralized data access layer (Postgres for app state, Delta for sessions/pipeline)
+├── pg.py                   # Lakebase Postgres pool — per-connection OAuth token refresh
 ├── chart_suggest.py        # Heuristic chart type suggestion
 ├── genie_client.py         # Databricks Genie API wrapper
 ├── models.py               # All Pydantic request/response models
@@ -66,9 +70,9 @@ backend/
 └── pipeline/               # Data generation pipeline
 ```
 
-### Database Schema (UC Delta Tables)
+### Database Schema
 
-Catalog: `yd_launchpad_final_classic_catalog`, Schema: `genie_app`
+App state lives in **Lakebase Postgres** (`databricks_postgres`, role `app_rw`). UC Delta (catalog `yd_launchpad_final_classic_catalog`, schema `genie_app`) holds `sessions` + pipeline-generated data tables.
 
 | Table | Purpose |
 |-------|---------|

@@ -1,138 +1,152 @@
-# GenieApp — Architecture
+# Genie-rator Architecture & Current State
 
-## System Overview
+## Last Updated: April 28, 2026
 
-Multi-user Databricks app: FastAPI backend + React frontend. Users create/connect Genie Spaces, choose UI templates, chat via natural language, view results as charts/tables. Persistent conversations across restarts.
+## What This App Does
+Multi-user Databricks App that generates branded Genie Spaces with custom data. Users describe a company → LLM designs schema → LLM generates data specs → Python generates rows → creates UC tables → creates Genie Space with embedded chat + dashboards.
 
-## Backend Modules
+## Tech Stack
+- **Frontend**: React + Vite + TanStack Router + shadcn/ui + Recharts
+- **Backend**: FastAPI (Python), served at `/api`
+- **Database**: Lakebase Postgres (app state) + Delta tables (pipeline data, sessions)
+- **Deployment**: Databricks Apps via Asset Bundles
+- **LLM**: Claude Opus via Databricks AI Gateway (`opendoor-claude-opus-46`)
+- **Auth**: Databricks Apps headers (X-Forwarded-User, X-Forwarded-Access-Token)
 
+## Architecture Diagram
 ```
-backend/
-├── app.py                  # Entry point — creates app, ensure_tables on startup
-├── app_config.py           # state.json loader (legacy single-space fallback)
-├── db.py                   # Data access layer (UC Delta tables via SQL Statements API)
-│                           # Functions: ensure_tables, user CRUD, conversation CRUD,
-│                           # message CRUD, space CRUD, TTL caches
-├── chart_suggest.py        # Heuristic chart type suggestion
-├── genie_client.py         # Databricks Genie API wrapper
-├── models.py               # All Pydantic request/response models
-├── core/                   # APX framework internals
-├── routes/                 # API route modules
-│   ├── chat.py             # Chat, feedback, conversations, version, health
-│   ├── spaces.py           # Space CRUD, BYOG, config, template, jobs
-│   ├── tables.py           # Table browsing, app config
-│   ├── users.py            # User profile, preferences
-│   ├── upload.py           # Image upload/retrieval
-│   └── export.py           # Conversation export
-├── router.py               # Legacy monolithic router (dead code)
-└── pipeline/               # Data generation pipeline
+Frontend (React)  →  FastAPI Backend  →  Lakebase Postgres (users, spaces, conversations, messages, feedback)
+                                      →  Delta Tables (sessions, generated company data)
+                                      →  Genie API (chat, query results)
+                                      →  AI Gateway / Claude (schema design, data gen specs, dashboards)
 ```
 
-## Frontend Structure
-
+## Key Directories
 ```
-ui/
-├── lib/
-│   ├── api.ts              # API client (axios + React Query hooks)
-│   └── useChatFlow.ts      # Reusable chat polling hook
-├── components/apx/
-│   ├── AuthProvider.tsx     # User auth context
-│   ├── PreferencesPanel.tsx # Theme + template preferences
-│   ├── TemplateRenderer.tsx # Lazy template loader
-│   ├── template-testing/   # 5 demo templates + mock data
-│   ├── ChartRenderer.tsx   # Chart rendering
-│   ├── DataTable.tsx        # Table rendering
-│   ├── MessageBubble.tsx   # Chat message component
-│   └── ...
-├── routes/
-│   ├── __root.tsx          # Root layout (ThemeProvider + AuthProvider)
-│   ├── index.tsx           # Landing / space creation
-│   ├── spaces.tsx          # Space list
-│   └── _sidebar/
-│       ├── route.tsx       # Sidebar layout (nav, tables, history, user info)
-│       ├── chat.tsx        # Chat page
-│       └── templates.tsx   # Template picker
-└── components/ui/          # shadcn/ui primitives
+src/genieapp/
+  backend/
+    app.py                    # FastAPI entry point, startup (Postgres pool init)
+    db.py                     # Data access layer — Lakebase Postgres for app state, Delta for sessions
+    pg.py                     # Postgres connection pool (psycopg2, OAuth JWT auth)
+    chart_suggest.py          # Heuristic chart type/axis selection for query results
+    genie_client.py           # Genie API wrapper + SQL re-execution fallback
+    models.py                 # All Pydantic models (CreateSpaceIn, ChatMessageOut, etc.)
+    core/                     # APX framework (config, deps, headers, static)
+    routes/
+      admin.py                # Admin dashboard + Lakebase test endpoint
+      chat.py                 # Chat endpoints (sync/async), conversations, starred, feedback
+      spaces.py               # Space CRUD, BYOG, pipeline trigger, config, dashboard
+      users.py                # User profile, preferences, feedback submission
+      upload.py               # Image upload/retrieval
+      export.py               # Conversation export
+    pipeline/
+      run.py                  # Pipeline orchestrator (schema → data → tables → genie space)
+      schema_designer.py      # LLM schema design (3-4 tables from company description)
+      data_generator_llm.py   # Spec-based data gen (LLM specs → Python rows, parallel)
+      data_generator.py       # Old Faker-based generator (unused, kept for reference)
+      space_creator.py        # UC table creation, Genie Space creation, session saving
+      dashboard_designer.py   # LLM dashboard panel design + SQL execution
+      theme_generator.py      # LLM brand color palette generation
+  ui/
+    routes/
+      index.tsx               # Landing page — create space form (name, desc, logo, must-answer questions)
+      spaces.tsx              # Space listing (My Spaces + Shared Spaces + delete)
+      admin.tsx               # Admin dashboard (KPIs, usage chart, user/space tables)
+      _sidebar/
+        route.tsx             # Sidebar layout with nav, tables, history
+        chat.tsx              # Chat page (QueryWorkspace)
+        dashboard.tsx         # Dashboard page (pre-computed panels + Genie drawer)
+    components/apx/
+      ChartRenderer.tsx       # Recharts wrapper with chart type/axis controls
+      DashboardView.tsx       # Dashboard grid with KPI cards + charts + Genie drawer
+      GenieDrawer.tsx         # Slide-out Genie chat on dashboard
+      DataTable.tsx           # Tabular results display
+      MessageBubble.tsx       # Chat message with markdown, SQL, charts
+      HelpDialog.tsx          # Help guide + feedback form
+    lib/
+      api.ts                  # API client (axios + React Query hooks)
+      useChatFlow.ts          # Reusable chat polling hook
+scripts/pipeline/
+  01_design_and_generate.ipynb  # Step 1: Schema design + spec-based data gen (with logging)
+  02_create_tables.ipynb        # Step 2: Create UC Delta tables from parquet
+  03_create_space.ipynb         # Step 3: Create Genie Space + save session
+  04_create_dashboard.ipynb     # Step 4: LLM dashboard panel design + SQL execution
 ```
 
-## Database Schema (UC Delta Tables)
+## Database: Lakebase Postgres
+- **Host**: ep-flat-haze-d2mzy9ui.database.us-east-1.cloud.databricks.com
+- **Database**: databricks_postgres
+- **Schema**: public
+- **Tables**: users, spaces, conversations, messages, images, feedback
+- **Auth**: Service principal OAuth JWT via `ws.config.authenticate()`
+- **Connection**: psycopg2 pool in `pg.py`, auto-init on first use
+- **Deploy quirk**: `databricks bundle deploy` strips the Database resource → deploy.sh re-adds it via API PATCH → need to run `GRANT app_rw TO "677d1641-521c-4df6-91f4-dacea8be74e7"` after each deploy
 
-Catalog: `yd_launchpad_final_classic_catalog`, Schema: `genie_app`
+## Database: Delta Tables (UC)
+- **Catalog**: yd_launchpad_final_classic_catalog
+- **Schema**: genie_app
+- **Tables**: sessions (legacy pipeline metadata), generated company tables (per-space analytics data)
+- **Warehouse**: fc62b388f737b2d3 (yd-sql-warehouse)
+- **Used for**: Pipeline data generation, Genie SQL re-execution, session fallback
 
-### `users`
-| Column | Type | Notes |
-|--------|------|-------|
-| user_id | STRING | From X-Forwarded-User. Application-enforced PK |
-| email | STRING | From X-Forwarded-Email |
-| username | STRING | From X-Forwarded-Preferred-Username |
-| default_template | STRING | simple/widget/dashboard/command/workspace |
-| preferences_json | STRING | Extensible JSON blob |
-| created_at | TIMESTAMP | |
-| updated_at | TIMESTAMP | |
+## Data Generation Pipeline (Current: Spec-Based v3)
+```
+User Input (company name, description, optional must-answer questions)
+  ↓
+Step 1: LLM designs schema (3-4 tables, ~30s)
+  ↓
+Step 2: LLM generates data SPEC per table (distributions, fixtures) — parallel for independent tables (~60-80s)
+  ↓
+Step 3: Python generates rows from spec (instant, ~0.03s)
+  - Two-pass formula evaluation (regular cols first, then formulas)
+  - Post-generation sanity checks (balance <= principal, price > cost, etc.)
+  ↓
+Step 4: Write parquet → Create Delta tables → Create Genie Space → Create Dashboard
+  ↓
+Total: ~2-3 min for data gen, ~5-6 min total pipeline
+```
 
-### `spaces`
-| Column | Type | Notes |
-|--------|------|-------|
-| space_id | STRING | Genie Space ID. Application-enforced PK |
-| owner_user_id | STRING | FK to users |
-| company_name | STRING | |
-| description | STRING | |
-| schema_name | STRING | UC schema (NULL for BYOG) |
-| space_type | STRING | generated or byog |
-| template_id | STRING | UI template |
-| logo_volume_path | STRING | UC Volume path |
-| primary_color, secondary_color, accent_color | STRING | |
-| chart_colors_json | STRING | JSON array |
-| tables_json | STRING | JSON array |
-| sample_questions_json | STRING | JSON array |
-| warehouse_id | STRING | |
-| is_active | BOOLEAN | Soft delete |
-| created_at, updated_at | TIMESTAMP | |
+## Deploy Workflow
+```bash
+./deploy.sh  # Builds frontend, deploys bundle, restores Lakebase resource, deploys app
+# Then run in Lakebase SQL editor:
+GRANT app_rw TO "677d1641-521c-4df6-91f4-dacea8be74e7";
+```
 
-### `conversations`
-| Column | Type | Notes |
-|--------|------|-------|
-| conversation_id | STRING | From Genie API |
-| space_id | STRING | FK to spaces |
-| user_id | STRING | FK to users |
-| title | STRING | First question, truncated |
-| message_count | INT | |
-| is_archived | BOOLEAN | |
-| created_at, updated_at | TIMESTAMP | |
+## Admin
+- **Admin user ID**: 76554809512980@7474655921234161
+- **Admin endpoint**: GET /api/admin/stats, /admin/users, /admin/spaces, /admin/lakebase-test
+- **Service principal**: app-5t6256 genieapp-dev (677d1641-521c-4df6-91f4-dacea8be74e7)
 
-### `messages`
-| Column | Type | Notes |
-|--------|------|-------|
-| message_id | STRING | From Genie API |
-| conversation_id | STRING | FK to conversations |
-| user_id | STRING | FK to users |
-| question | STRING | User's question |
-| status | STRING | COMPLETED, FAILED, etc. |
-| sql_text | STRING | Generated SQL |
-| description | STRING | Genie text response |
-| is_clarification | BOOLEAN | |
-| feedback_rating | STRING | POSITIVE or NEGATIVE |
-| created_at | TIMESTAMP | |
+## Key Features Implemented
+- [x] Multi-user session management (My Spaces vs Shared Spaces)
+- [x] Ownership checks on mutations (delete, template change)
+- [x] Conversation isolation (users can't see each other's conversations)
+- [x] Chart suggestion engine (ID exclusion, KPI detection, axis selection)
+- [x] Dashboard with embedded Genie chat drawer
+- [x] Admin dashboard with KPIs, usage trends, user/space management
+- [x] Help dialog with guide + feedback collection
+- [x] AWS-style delete confirmation (type space name)
+- [x] Lakebase Postgres migration (fast reads/writes)
+- [x] Spec-based data generation (LLM specs → Python rows)
+- [x] Must-answer questions (optional, shapes schema + data)
+- [x] Data generation logging to UC Volume
+- [x] Parallel table generation for independent tables
+- [x] SQL re-execution fallback for expired Genie results
+- [x] Markdown rendering for Genie responses
+- [x] Robust JSON serialization (Decimal, date, datetime, numpy)
 
-### `images`
-| Column | Type | Notes |
-|--------|------|-------|
-| image_id | STRING | UUID |
-| user_id | STRING | FK to users |
-| space_id | STRING | FK to spaces (nullable) |
-| filename | STRING | Original filename |
-| content_type | STRING | MIME type |
-| volume_path | STRING | /Volumes/... path |
-| size_bytes | BIGINT | |
-| created_at | TIMESTAMP | |
+## Known Issues / Future Work
+- [ ] Deploy strips Lakebase DB resource → need manual GRANT after each deploy (bundle CLI doesn't support postgres resource type yet)
+- [ ] Email column in generated data sometimes gets numeric values instead of strings (spec issue)
+- [ ] Formula-derived columns occasionally produce 0 when eval fails (fallback kicks in)
+- [ ] Old conversations with expired Genie results use SQL re-execution fallback (slightly different data)
+- [ ] Pipeline notebooks duplicate logic from Python modules (space_creator.py vs notebook cells)
+- [ ] Error toasts in frontend not fully implemented (some errors still show blank screens)
+- [ ] Phase 4+5 of Lakebase migration not done (cleanup route-level SQL, RETURNING optimization)
 
-## Caching Strategy
-- **Frontend**: React Query with `staleTime: Infinity` for config, `30s` for space lists
-- **Backend**: `cachetools.TTLCache` — user profile (5min), space list (30s)
-- **Conversation data**: Metadata in DB, full result data from Genie API on-demand
-
-## Auth Flow
-1. Databricks Apps proxy injects `X-Forwarded-User`, `X-Forwarded-Email`, `X-Forwarded-Access-Token`
-2. `GET /api/users/me` → upserts user in DB, returns profile
-3. BYOG validation uses user's OBO token (`X-Forwarded-Access-Token`)
-4. Local dev: headers absent → anonymous user fallback
+## Git / Deployment
+- **Branch**: v1-release (main working branch)
+- **Derek's repo**: github.com/dbderek/databricks-genie-app (v4 = latest push)
+- **App URL**: https://genieapp-dev-7474655921234161.aws.databricksapps.com
+- **Workspace**: fevm-yd-launchpad-final-classic

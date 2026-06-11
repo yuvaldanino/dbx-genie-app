@@ -29,8 +29,14 @@ export default defineConfig({
   server: {
     proxy: {
       "/api": {
-        target: "http://localhost:8000",
+        // DEV_API_TARGET lets dev proxy hit the live Databricks App instead of
+        // a local backend; DEV_API_TOKEN injects the bearer the gateway needs.
+        // Defaults unchanged: localhost:8000, no auth header.
+        target: process.env.DEV_API_TARGET || "http://localhost:8000",
         changeOrigin: true,
+        ...(process.env.DEV_API_TOKEN
+          ? { headers: { Authorization: `Bearer ${process.env.DEV_API_TOKEN}` } }
+          : {}),
       },
     },
   },

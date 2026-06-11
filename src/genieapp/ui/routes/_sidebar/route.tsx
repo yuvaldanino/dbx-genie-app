@@ -33,6 +33,7 @@ import {
   History,
   User,
   Settings,
+  Sparkles,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_sidebar")({
@@ -47,7 +48,10 @@ function SidebarLayout() {
   // Extract spaceId from child route search params
   const matches = useMatches();
   const childMatch = matches.find(
-    (m) => m.routeId === "/_sidebar/chat" || m.routeId === "/_sidebar/dashboard",
+    (m) =>
+      m.routeId === "/_sidebar/chat" ||
+      m.routeId === "/_sidebar/dashboard" ||
+      m.routeId === "/_sidebar/genie-chat",
   );
   const spaceId = (childMatch?.search as { spaceId?: string })?.spaceId;
 
@@ -139,6 +143,12 @@ function SidebarLayout() {
             <Button variant="ghost" className="w-full justify-start gap-2">
               <Home className="h-4 w-4 text-primary" />
               Home
+            </Button>
+          </Link>
+          <Link to="/genie-chat" search={spaceId ? { spaceId } : {}}>
+            <Button variant="ghost" className="w-full justify-start gap-2">
+              <Sparkles className="h-4 w-4 text-primary" />
+              Genie Chat
             </Button>
           </Link>
           <Link to="/chat" search={spaceId ? { spaceId } : {}}>

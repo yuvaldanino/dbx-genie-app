@@ -78,7 +78,7 @@ The "janky" feeling. Sweep for:
 - **Recommended questions always visible**: persistent left-panel list (sidebar section under Tables/History) showing the space's must-answer/sample questions (`sample_questions_json` on the space row) + Genie's suggested follow-ups; click → runs it. Demo presenters lean on this.
 
 ### Quick wins (small, high-visibility — found during P0 #2, 2026-06-11)
-- [ ] **Parallelize history load** — `get_conversation_messages_endpoint` rebuilds message data serially → 10-40s opens on long conversations (worst visible jank right now). ThreadPoolExecutor over per-message fetches → ~max(single fetch). ~20 lines, contained.
+- [x] **Parallelize history load** — DONE 2026-06-11. `get_conversation_messages_endpoint` now rebuilds per-message data via ThreadPoolExecutor (≤6 workers, order-preserving `pool.map`, ownership check unchanged). Was 10-40s serial on long conversations.
 - [ ] **Feedback space_id bug** — `/chat/feedback` (chat.py) resolves space_id from legacy `state.json`; `FeedbackIn` has no space_id field → thumbs up/down silently fails (or hits wrong space) for every space except the legacy default. Add `space_id` to FeedbackIn + frontend pass-through. ~15 lines.
 
 ### P1 — Worth doing, small

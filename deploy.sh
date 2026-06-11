@@ -47,7 +47,7 @@ else:
 # 4. Grant app service principal UC permissions
 echo ""
 echo "--- Granting app permissions ---"
-APP_JSON=$(databricks apps get "$APP_NAME" -o json)
+APP_JSON=$(databricks apps get "$APP_NAME" --profile vm -o json)
 SP_APP_ID=$(echo "$APP_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['service_principal_client_id'])")
 WAREHOUSE_ID=$(echo "$APP_JSON" | python3 -c "
 import sys,json
@@ -63,7 +63,7 @@ run_sql() {
   local sql="$1"
   local payload result state
   payload=$(python3 -c 'import json,sys; print(json.dumps({"statement": sys.argv[1], "warehouse_id": sys.argv[2], "wait_timeout": "30s"}))' "$sql" "$WAREHOUSE_ID")
-  result=$(databricks api post /api/2.0/sql/statements --json "$payload" 2>&1)
+  result=$(databricks api post /api/2.0/sql/statements --profile vm --json "$payload" 2>&1)
   state=$(echo "$result" | python3 -c "import sys,json; print(json.load(sys.stdin).get('status',{}).get('state','UNKNOWN'))" 2>/dev/null || echo "ERROR")
   if [ "$state" = "SUCCEEDED" ]; then
     echo "  OK: $sql"

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
+
 from fastapi import APIRouter, Request
 
 from ..app_config import get_state
@@ -347,48 +349,66 @@ def get_conversation_messages_endpoint(
     if not space_id and conv:
         space_id = conv.get("space_id")
 
-    # Hard rule: genie.* calls MUST use the SP client — OBO tokens lack the
-    # `genie` scope (403) and silently degraded history to metadata-only.
-    genie_ws = ws
+    if not rows:
+        return []
 
-    messages = []
-    for row in rows:
-        response = None
-        is_starred = row.get("is_starred") in (True, "true", "1")
-        msg_id = row.get("message_id", "")
-
-        if row.get("status") in ("COMPLETED", "FAILED", "NO_RESULT"):
-            # Try re-fetching full data from Genie API
-            if row.get("status") == "COMPLETED" and msg_id and space_id:
-                try:
-                    result = get_genie_result(genie_ws, space_id, conv_id, msg_id)
-                    response = _result_to_response(result)
-                    response.is_starred = is_starred
-                except Exception:
-                    logger.warning("Could not re-fetch Genie data for %s/%s — falling back to metadata", conv_id, msg_id)
-                    response = None
-
-            # Fallback to metadata-only response
-            if response is None:
-                response = ChatMessageOut(
-                    conversation_id=conv_id,
-                    message_id=msg_id,
-                    status=row.get("status", "COMPLETED"),
-                    description=row.get("description", ""),
-                    sql=row.get("sql_text", ""),
-                    columns=[],
-                    data=[],
-                    row_count=0,
-                    is_clarification=row.get("is_clarification") in (True, "true", "1"),
-                    is_starred=is_starred,
-                )
-
-        messages.append(ConversationMessageOut(
-            question=row.get("question", ""),
-            response=response,
-            is_starred=is_starred,
+    # Rebuild message data in PARALLEL — serial re-fetch (Genie + SQL re-execution
+    # per message) made long conversations take 10-40s to open. Order is preserved
+    # by pool.map; workers bounded to keep warehouse fan-out sane. User isolation
+    # is unaffected: the ownership check above runs before any fetching.
+    with ThreadPoolExecutor(max_workers=min(6, len(rows))) as pool:
+        return list(pool.map(
+            lambda row: _build_conversation_message(ws, conv_id, space_id, row),
+            rows,
         ))
-    return messages
+
+
+def _build_conversation_message(
+    ws,
+    conv_id: str,
+    space_id: str | None,
+    row: dict,
+) -> ConversationMessageOut:
+    """Build one history message, re-fetching Genie data. Runs in a worker thread.
+
+    Hard rule: genie.* calls MUST use the SP client — OBO tokens lack the
+    `genie` scope (403) and silently degraded history to metadata-only.
+    """
+    response = None
+    is_starred = row.get("is_starred") in (True, "true", "1")
+    msg_id = row.get("message_id", "")
+
+    if row.get("status") in ("COMPLETED", "FAILED", "NO_RESULT"):
+        # Try re-fetching full data from Genie API
+        if row.get("status") == "COMPLETED" and msg_id and space_id:
+            try:
+                result = get_genie_result(ws, space_id, conv_id, msg_id)
+                response = _result_to_response(result)
+                response.is_starred = is_starred
+            except Exception:
+                logger.warning("Could not re-fetch Genie data for %s/%s — falling back to metadata", conv_id, msg_id)
+                response = None
+
+        # Fallback to metadata-only response
+        if response is None:
+            response = ChatMessageOut(
+                conversation_id=conv_id,
+                message_id=msg_id,
+                status=row.get("status", "COMPLETED"),
+                description=row.get("description", ""),
+                sql=row.get("sql_text", ""),
+                columns=[],
+                data=[],
+                row_count=0,
+                is_clarification=row.get("is_clarification") in (True, "true", "1"),
+                is_starred=is_starred,
+            )
+
+    return ConversationMessageOut(
+        question=row.get("question", ""),
+        response=response,
+        is_starred=is_starred,
+    )
 
 
 # --- Starred Queries ---

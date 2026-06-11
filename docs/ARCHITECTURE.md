@@ -179,7 +179,7 @@ GRANT app_rw TO "677d1641-521c-4df6-91f4-dacea8be74e7";
 
 ## Known Issues / Future Work
 - [ ] Deploy strips Lakebase DB resource → GRANT required after each deploy (agent self-serves via psql since 2026-06-11, see OPERATIONS.md; bundle CLI doesn't support postgres resource type yet)
-- [ ] History load rebuilds per-message data SERIALLY → 10-40s opens on long conversations (quick win: parallelize, see PROJECT_STATE.md)
+- [x] ~~History load rebuilds per-message data serially~~ — parallelized 2026-06-11 (ThreadPoolExecutor ≤6 workers in chat.py)
 - [ ] `/chat/feedback` resolves space_id from legacy state.json → silently broken for all non-default spaces (quick win, see PROJECT_STATE.md)
 - [ ] `build_genie_instructions` keys on old `faker` schema format → degraded instructions for all v3 spaces (P0 #1, fix + retune approved)
 - [ ] `_parse_genie_response` keeps only the LAST text/query attachment; uses legacy non-attachment-scoped query-result endpoint (P0 #1)

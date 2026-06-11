@@ -172,15 +172,20 @@ GRANT app_rw TO "677d1641-521c-4df6-91f4-dacea8be74e7";
 - [x] Must-answer questions (optional, shapes schema + data)
 - [x] Data generation logging to UC Volume
 - [x] Parallel table generation for independent tables
-- [x] SQL re-execution fallback for expired Genie results
+- [x] SQL re-execution fallback for expired Genie results (working since 2026-06-11 — UC grants were silently missing before)
+- [x] Recompute expired results: `POST /api/chat/{conv}/{msg}/recompute` + per-message button + "Recompute all" (QueryWorkspace)
 - [x] Markdown rendering for Genie responses
 - [x] Robust JSON serialization (Decimal, date, datetime, numpy)
 
 ## Known Issues / Future Work
-- [ ] Deploy strips Lakebase DB resource → need manual GRANT after each deploy (bundle CLI doesn't support postgres resource type yet)
+- [ ] Deploy strips Lakebase DB resource → GRANT required after each deploy (agent self-serves via psql since 2026-06-11, see OPERATIONS.md; bundle CLI doesn't support postgres resource type yet)
+- [ ] History load rebuilds per-message data SERIALLY → 10-40s opens on long conversations (quick win: parallelize, see PROJECT_STATE.md)
+- [ ] `/chat/feedback` resolves space_id from legacy state.json → silently broken for all non-default spaces (quick win, see PROJECT_STATE.md)
+- [ ] `build_genie_instructions` keys on old `faker` schema format → degraded instructions for all v3 spaces (P0 #1, fix + retune approved)
+- [ ] `_parse_genie_response` keeps only the LAST text/query attachment; uses legacy non-attachment-scoped query-result endpoint (P0 #1)
 - [ ] Email column in generated data sometimes gets numeric values instead of strings (spec issue)
 - [ ] Formula-derived columns occasionally produce 0 when eval fails (fallback kicks in)
-- [ ] Old conversations with expired Genie results use SQL re-execution fallback (slightly different data)
+- [ ] Expired-result recompute re-derives data from saved SQL — regenerated data may differ slightly from the original Genie snapshot
 - [ ] Pipeline notebooks duplicate logic from Python modules (space_creator.py vs notebook cells)
 - [ ] Error toasts in frontend not fully implemented (some errors still show blank screens)
 - [ ] Phase 4+5 of Lakebase migration not done (cleanup route-level SQL, RETURNING optimization)

@@ -12,9 +12,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Hard Rules
 
-1. **After EVERY deploy, the Lakebase GRANT must run** before the app works (see docs/OPERATIONS.md). Verify with `/api/spaces` returning >1 space.
+1. **After EVERY deploy, the Lakebase GRANT must run** before the app works (see docs/OPERATIONS.md — agent self-serves via psql). Verify with `/api/spaces` returning >1 space. Also check deploy.sh UC GRANT lines all say `OK` — they silently failed for months once.
 2. **Never use the user OBO client for `ws.genie.*` calls** — OBO tokens lack the `genie` scope (403). Use the SP client (`ws`).
-3. **Verify against the live app with curl after every deploy** (smoke + chat flow, see docs/OPERATIONS.md). Do not declare success without it.
+3. **Verify against the live app after every deploy**: `python3 scripts/verify_live.py --chat` (smoke + history data + chat flow, see docs/OPERATIONS.md). Do not declare success without it.
 4. **Database is shared across git branches** — Lakebase schema changes must be backward compatible.
 5. **`main` is protected by convention** — experimental work goes on `agent-overhaul`. Rollback baseline: tag `v2-stable`.
 6. When touching auth/tokens/connections, ask: what happens when this credential expires mid-flight?

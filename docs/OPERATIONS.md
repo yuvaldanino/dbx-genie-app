@@ -49,19 +49,22 @@ Ask the user: "Run `GRANT app_rw TO "677d1641-521c-4df6-91f4-dacea8be74e7";` in 
 ## Verification suite (run after EVERY deploy)
 
 ```bash
+# One command — smoke + history-data check (+ --chat for full ephemeral chat flow):
+python3 scripts/verify_live.py --chat
+```
+
+Checks: all endpoints 200 · spaces >1 (n=1 = Acme fallback = GRANT missing) · old
+conversations return real data arrays (≥50% of completed-with-SQL messages — guards the
+P0 #2 regression) · ephemeral chat flow COMPLETED with rows.
+
+Manual equivalents (burst test, raw curl forms) if the script can't run:
+
+```bash
 TOKEN=$(databricks auth token --profile vm | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')
 APP=https://genieapp-dev-7474655921234161.aws.databricksapps.com
-
-# 1. Smoke — all must be 200; spaces must be >1 (n=1 means Acme fallback = GRANT missing)
 curl -sL -w 'HTTP:%{http_code}\n' -o /dev/null -H "Authorization: Bearer $TOKEN" "$APP/api/health"
-curl -sL -w 'HTTP:%{http_code}\n' -o /dev/null -H "Authorization: Bearer $TOKEN" "$APP/api/users/me"
 curl -sL -H "Authorization: Bearer $TOKEN" "$APP/api/spaces" | python3 -c "import sys,json; print('spaces:', len(json.load(sys.stdin)))"
-
-# 2. Burst — 20 sequential /api/users/me; healthy = flat ~0.35s, max <1s
-# 3. Full chat flow (use ephemeral:true to avoid polluting history):
-#    POST /api/chat/start {"question":"...","space_id":"01f144169528170cab22ee3e2a5803e4","ephemeral":true}
-#    poll GET /api/chat/{conv}/{msg}/status?space_id=...   until is_complete
-#    GET /api/chat/{conv}/{msg}/result?space_id=...&ephemeral=true   → expect 200, row_count>0
+# Burst — 20 sequential /api/users/me; healthy = flat ~0.35s, max <1s
 ```
 
 Stable space IDs for testing: Coca-Cola `01f144169528170cab22ee3e2a5803e4` (shared), Starbucks `01f1279e5f7117e99e11462df7077b2b` (shared).

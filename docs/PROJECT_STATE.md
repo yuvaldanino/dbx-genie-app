@@ -14,11 +14,12 @@ Live app: https://genieapp-dev-7474655921234161.aws.databricksapps.com
 
 ## Current state: WORKING and verified
 
-All endpoints healthy as of last verification (2026-06-11):
-- Smoke: health/users/spaces/conversations all 200
-- Burst: 20 sequential requests, flat ~0.35s
-- Concurrent: 30/30 OK at 10-parallel
-- Full chat flow: COMPLETED with data
+All endpoints healthy as of last verification (2026-06-11, post P0 #2 deploy, commit `d1f0192`):
+- Smoke: health/users/spaces/conversations all 200, 16 spaces
+- Full ephemeral chat flow: COMPLETED, rows>0, chart suggestion
+- Old-conversation history: 14/15 completed messages return full data (was 3/15 before the fix); the 1 is a legit 0-row query
+- App SP now has real UC grants (catalog-level USE CATALOG/USE SCHEMA/SELECT + genie_app MODIFY + volume RW) — it had NONE before 2026-06-11
+- Known UX cost: history load rebuilds message data serially → 10-40s for long conversations (fix = parallelize, see Quick wins)
 
 ## Production incident history (read this — patterns repeat)
 
@@ -44,11 +45,12 @@ The two biggest user-reported problems, verbatim:
 ### P0 — The big four (work these first)
 
 #### 1. Result-quality parity with native Genie
-The same space answers better at databricks.com/genie than through the app. Diagnose before fixing — likely contributors to investigate, in order:
-- **Conversation context**: native Genie keeps a running conversation (follow-ups refine results). The app's QueryWorkspace treats questions independently — check whether `conversation_id` is reused or each question starts fresh (`useChatFlow.ts`, `chat/start` body). Fresh conversations = Genie loses context = worse answers.
-- **Response handling**: compare raw `GenieMessage` attachments for the same question asked natively vs through the app. The app may be dropping clarifications, suggested follow-ups, or text the native UI surfaces (`genie_client.py:_parse_genie_response`).
+The same space answers better at databricks.com/genie than through the app. Code-reading findings (2026-06-11) updated this diagnosis plan:
+- **Conversation context — hypothesis REVERSED by code reading**: `useChatFlow.ts` DOES reuse `conversation_id`, and QueryWorkspace auto-resumes the user's most recent conversation on page load (`QueryWorkspace.tsx:59-62`). The risk is the opposite of what was assumed: one ever-growing conversation accumulating weeks of stale demo context that pollutes new questions. A/B test live: same question in fresh vs long-resumed conversation, native vs app.
+- **Genie space instructions — CONFIRMED broken, concrete fix known**: `build_genie_instructions` (notebook 03 + `space_creator.py`) keys on the old `faker`/`args` schema format, but `schema_designer.py` v3 emits `type`/`references`. Result for every v3 space: all columns listed as STRING, Relationships section always empty, Categorical Values always empty, generic query tips. Fix the builder for v3 format + **retune the ~16 existing spaces** by PATCHing their live instructions (user approved 2026-06-11; test on one space, verify before/after).
+- **Response handling**: `_parse_genie_response` keeps only the LAST text and LAST query attachment (loop overwrites); native UI shows all. Also uses the legacy non-attachment-scoped `get_message_query_result` — newer API is attachment-scoped. Compare raw `GenieMessage` payloads native vs app.
 - **Result truncation**: check `is_truncated` handling and row limits; the app may render partial data without saying so.
-- **Genie space configuration**: pipeline creates bare spaces (`scripts/pipeline/03_create_space.ipynb`, `space_creator.py`). Native spaces people compare against often have curated instructions/sample queries. Add during pipeline: space instructions, column descriptions on UC tables, example SQL per must-answer question. (= "Genie space tuning")
+- **Space config extras**: example SQL per must-answer question, column descriptions on UC tables (column comments DO survive today; types/relationships don't).
 - **Generated data realism** feeds this too: uniform fake data → boring/garbage answers. Improve distributions (seasonality, power-law, regional correlation), FK consistency, plausible time series (`data_generator_llm.py` spec prompts).
 
 #### 2. Old conversations lose graphs → recompute + precompute — ✅ DONE 2026-06-11
@@ -74,6 +76,10 @@ The "janky" feeling. Sweep for:
 - Warehouse cold-start: first query after idle takes 1-3 min — show "warehouse warming up" messaging instead of an opaque wait, or fire a warehouse keep-alive/wake ping on app load
 - Visual alignment with Databricks design language (spacing, typography, nav patterns)
 - **Recommended questions always visible**: persistent left-panel list (sidebar section under Tables/History) showing the space's must-answer/sample questions (`sample_questions_json` on the space row) + Genie's suggested follow-ups; click → runs it. Demo presenters lean on this.
+
+### Quick wins (small, high-visibility — found during P0 #2, 2026-06-11)
+- [ ] **Parallelize history load** — `get_conversation_messages_endpoint` rebuilds message data serially → 10-40s opens on long conversations (worst visible jank right now). ThreadPoolExecutor over per-message fetches → ~max(single fetch). ~20 lines, contained.
+- [ ] **Feedback space_id bug** — `/chat/feedback` (chat.py) resolves space_id from legacy `state.json`; `FeedbackIn` has no space_id field → thumbs up/down silently fails (or hits wrong space) for every space except the legacy default. Add `space_id` to FeedbackIn + frontend pass-through. ~15 lines.
 
 ### P1 — Worth doing, small
 - [ ] **Health probe → Slack** — user HAS a webhook ready (Slack app created; ask user for the URL, store in Databricks secret scope, never in git). Every 30 min: ephemeral chat flow against a shared space → post ✅ healthy / ⚠️ degraded / ❌ down with latency + error. Scheduled Databricks job (`resources/`), ~150-line script.

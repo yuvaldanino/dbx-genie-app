@@ -23,8 +23,29 @@ _TERMINAL_STATUSES = {
 }
 
 
-def _reexecute_sql(ws: WorkspaceClient, sql: str) -> tuple[list[str], list[dict]]:
-    """Re-execute a SQL query directly when Genie cached results have expired."""
+def _reexecute_sql(
+    ws: WorkspaceClient,
+    sql: str,
+    poll_budget_sec: float = 0,
+) -> tuple[list[str], list[dict]]:
+    """Re-execute a SQL query directly when Genie cached results have expired.
+
+    Args:
+        ws: SP workspace client.
+        sql: SQL text to run.
+        poll_budget_sec: Extra seconds to poll a PENDING/RUNNING statement
+            after the initial 50s server-side wait (0 = give up, old behavior).
+            Use a generous budget for explicit recompute so cold warehouse
+            starts (1-3 min) don't silently return empty results.
+
+    Returns:
+        (columns, data). A successful query with zero rows returns (columns, []).
+
+    Raises:
+        RuntimeError: If the statement did not reach SUCCEEDED within budget.
+    """
+    import time
+
     from .db import WAREHOUSE_ID
 
     resp = ws.api_client.do(
@@ -32,8 +53,20 @@ def _reexecute_sql(ws: WorkspaceClient, sql: str) -> tuple[list[str], list[dict]
         "/api/2.0/sql/statements",
         body={"statement": sql, "warehouse_id": WAREHOUSE_ID, "wait_timeout": "50s"},
     )
-    if resp.get("status", {}).get("state") != "SUCCEEDED":
-        return [], []
+    state = resp.get("status", {}).get("state")
+    stmt_id = resp.get("statement_id")
+
+    # Poll past the server-side wait if the warehouse is still warming up.
+    deadline = time.time() + poll_budget_sec
+    while state in ("PENDING", "RUNNING") and stmt_id and time.time() < deadline:
+        time.sleep(2)
+        resp = ws.api_client.do("GET", f"/api/2.0/sql/statements/{stmt_id}")
+        state = resp.get("status", {}).get("state")
+
+    if state != "SUCCEEDED":
+        err = resp.get("status", {}).get("error", {}).get("message", "")
+        logger.warning("SQL re-execution did not succeed (state=%s, budget=%ss): %s", state, poll_budget_sec, err)
+        raise RuntimeError(f"SQL re-execution failed (state={state}): {err or 'timed out'}")
 
     manifest = resp.get("manifest", {})
     raw_cols = manifest.get("schema", {}).get("columns", [])
@@ -144,6 +177,41 @@ def get_genie_result(
         message_id=message_id,
     )
     return _parse_genie_response(ws, space_id, msg)
+
+
+def recompute_from_sql(
+    ws: WorkspaceClient,
+    conversation_id: str,
+    message_id: str,
+    sql: str,
+    description: str = "",
+    poll_budget_sec: float = 180,
+) -> dict[str, Any]:
+    """Re-run a message's persisted SQL and build a standard result dict.
+
+    Cheap recompute path — no Genie round-trip, just the SQL Statements API.
+    Generous poll budget so a cold warehouse (1-3 min start) still completes.
+
+    Raises:
+        RuntimeError: If the SQL did not succeed within budget.
+    """
+    columns, data = _reexecute_sql(ws, sql, poll_budget_sec=poll_budget_sec)
+    return {
+        "conversation_id": conversation_id,
+        "message_id": message_id,
+        "status": "COMPLETED",
+        "description": description,
+        "sql": sql,
+        "query_description": "",
+        "columns": columns,
+        "data": data,
+        "row_count": len(data),
+        "suggested_questions": [],
+        "is_truncated": False,
+        "is_clarification": False,
+        "error": None,
+        "error_type": "",
+    }
 
 
 def send_genie_feedback(

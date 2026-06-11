@@ -5,7 +5,13 @@
 
 import { useState } from "react";
 import { useChatFlow } from "@/lib/useChatFlow";
-import { useStarredMessages, useToggleStar, useConversations } from "@/lib/api";
+import {
+  useStarredMessages,
+  useToggleStar,
+  useConversations,
+  recomputeMessage,
+  type ConversationMessageOut,
+} from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,15 +30,26 @@ import {
   Inbox,
   Pin,
   PinOff,
+  RefreshCw,
 } from "lucide-react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import type { TemplateProps } from "./types";
 import type { Message } from "@/lib/useChatFlow";
 
+/** True when a message's result data expired and can be refreshed from saved SQL. */
+function needsRecompute(msg: Message): boolean {
+  const r = msg.response;
+  if (!r || !r.sql || r.is_clarification) return false;
+  if (r.status !== "COMPLETED" && r.status !== "FAILED") return false;
+  // Expired/metadata-only responses have no columns; a legit 0-row result keeps its columns.
+  return r.data.length === 0 && r.columns.length === 0;
+}
+
 /** Determine what kind of result a message has. */
-function getResultType(msg: Message): "Chart" | "Table" | "Error" | "Pending" {
+function getResultType(msg: Message): "Chart" | "Table" | "Error" | "Pending" | "Expired" {
   if (!msg.response) return "Pending";
+  if (needsRecompute(msg)) return "Expired";
   if (msg.response.error) return "Error";
   if (msg.response.columns.length >= 2 && msg.response.data.length > 0) return "Chart";
   if (msg.response.columns.length > 0 && msg.response.data.length > 0) return "Table";
@@ -40,12 +57,13 @@ function getResultType(msg: Message): "Chart" | "Table" | "Error" | "Pending" {
 }
 
 /** Badge color for result type. */
-function ResultBadge({ type }: { type: "Chart" | "Table" | "Error" | "Pending" }) {
+function ResultBadge({ type }: { type: "Chart" | "Table" | "Error" | "Pending" | "Expired" }) {
   if (type === "Pending") return null;
   const colors = {
     Chart: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
     Table: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
     Error: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
+    Expired: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
   };
   return (
     <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ${colors[type]}`}>
@@ -73,6 +91,53 @@ export function QueryWorkspace({ spaceId, config, initialConversationId }: Templ
   const { data: starredMessages = [] } = useStarredMessages(spaceId);
   const toggleStarMutation = useToggleStar();
   const queryClient = useQueryClient();
+  const [recomputingIds, setRecomputingIds] = useState<Set<string>>(new Set());
+  const [precomputeProgress, setPrecomputeProgress] = useState<string | null>(null);
+
+  /** Re-run a message's saved SQL and swap the fresh result into both tabs. */
+  async function handleRecompute(msg: Message) {
+    const convId = msg.response?.conversation_id;
+    const msgId = msg.response?.message_id;
+    if (!convId || !msgId || recomputingIds.has(msgId)) return;
+    setRecomputingIds((prev) => new Set(prev).add(msgId));
+    try {
+      const updated = await recomputeMessage(convId, msgId);
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.response?.message_id === msgId
+            ? { ...m, response: { ...updated, is_starred: m.is_starred ?? false } }
+            : m,
+        ),
+      );
+      queryClient.setQueryData<ConversationMessageOut[]>(
+        ["starredMessages", spaceId],
+        (old) =>
+          old?.map((sm) =>
+            sm.response?.message_id === msgId
+              ? { ...sm, response: { ...updated, is_starred: true } }
+              : sm,
+          ),
+      );
+    } catch {
+      // Network failure — keep the existing (expired) state so the button stays.
+    } finally {
+      setRecomputingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(msgId);
+        return next;
+      });
+    }
+  }
+
+  /** Sequentially recompute every expired message (first one warms the warehouse). */
+  async function handlePrecomputeAll() {
+    const targets = messages.filter(needsRecompute);
+    for (let i = 0; i < targets.length; i++) {
+      setPrecomputeProgress(`${i + 1}/${targets.length}`);
+      await handleRecompute(targets[i]);
+    }
+    setPrecomputeProgress(null);
+  }
 
   function handleSend(question?: string) {
     const q = question || input.trim();
@@ -137,6 +202,7 @@ export function QueryWorkspace({ spaceId, config, initialConversationId }: Templ
   })();
 
   const savedCount = starredMessages.length;
+  const expiredCount = messages.filter(needsRecompute).length;
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -181,6 +247,27 @@ export function QueryWorkspace({ spaceId, config, initialConversationId }: Templ
         <ScrollArea className="flex-1">
           {sidebarTab === "recent" ? (
             <div className="p-3 space-y-2">
+              {expiredCount > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full h-8 text-xs"
+                  onClick={handlePrecomputeAll}
+                  disabled={precomputeProgress !== null}
+                >
+                  {precomputeProgress ? (
+                    <>
+                      <Loader2 className="h-3 w-3 mr-1.5 animate-spin" />
+                      Recomputing {precomputeProgress}…
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="h-3 w-3 mr-1.5" />
+                      Recompute all ({expiredCount})
+                    </>
+                  )}
+                </Button>
+              )}
               {messages.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground">
                   <Inbox className="h-8 w-8 mx-auto mb-2 opacity-40" />
@@ -351,7 +438,14 @@ export function QueryWorkspace({ spaceId, config, initialConversationId }: Templ
         <ScrollArea className="flex-1">
           <div className="p-6">
             {activeMsg ? (
-              <QueryResult msg={activeMsg} />
+              <QueryResult
+                msg={activeMsg}
+                onRecompute={() => handleRecompute(activeMsg)}
+                isRecomputing={
+                  !!activeMsg.response?.message_id &&
+                  recomputingIds.has(activeMsg.response.message_id)
+                }
+              />
             ) : (
               <div className="flex flex-col items-center justify-center min-h-[400px] text-center">
                 <Inbox className="h-12 w-12 text-muted-foreground/30 mb-3" />
@@ -389,7 +483,15 @@ export function QueryWorkspace({ spaceId, config, initialConversationId }: Templ
 }
 
 /** Single query result display. */
-function QueryResult({ msg }: { msg: Message }) {
+function QueryResult({
+  msg,
+  onRecompute,
+  isRecomputing,
+}: {
+  msg: Message;
+  onRecompute?: () => void;
+  isRecomputing?: boolean;
+}) {
   const [sqlExpanded, setSqlExpanded] = useState(false);
 
   if (!msg.response) {
@@ -418,6 +520,33 @@ function QueryResult({ msg }: { msg: Message }) {
       {r.error && (
         <Card className="p-3 border-destructive/30 bg-destructive/5">
           <p className="text-sm text-destructive">{r.error}</p>
+        </Card>
+      )}
+
+      {/* Expired result — offer recompute from saved SQL */}
+      {needsRecompute(msg) && onRecompute && (
+        <Card className="p-4 border-amber-200 bg-amber-50/50 dark:border-amber-800/50 dark:bg-amber-950/20">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm text-muted-foreground">
+              {isRecomputing
+                ? "Re-running the saved query — the warehouse may take a minute to warm up…"
+                : "Result data has expired. Recompute re-runs the saved SQL to refresh it."}
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onRecompute}
+              disabled={isRecomputing}
+              className="shrink-0"
+            >
+              {isRecomputing ? (
+                <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+              ) : (
+                <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+              )}
+              Recompute
+            </Button>
+          </div>
         </Card>
       )}
 

@@ -2,6 +2,17 @@
 
 Changes validated in the component sandbox (`test.html`). Apply to real app once all testing is complete.
 
+## Deployed 2026-06-11: Recompute for expired results (P0 #2)
+
+**Problem:** Old conversations showed text+SQL but no charts/data (expired Genie results + broken fallbacks).
+**Fix (QueryWorkspace.tsx + api.ts):**
+- `needsRecompute()` — expired = COMPLETED/FAILED + has SQL + no data AND no columns (legit 0-row results keep columns → no false positive)
+- Amber "Expired" badge in query cards; amber card in result panel with **Recompute** button (spinner + "warehouse may take a minute" while running)
+- **Recompute all (N)** button atop Recent tab — sequential, shows i/N progress (first query warms the warehouse)
+- Fresh result swaps into both Recent local state and Saved tab query cache by message_id
+- Backend: `POST /api/chat/{conv}/{msg}/recompute` re-runs persisted sql_text (no Genie round-trip)
+**Verified live**: smoke + chat flow + old-conversation re-fetch (14/15 messages with data). Not sandbox-tested (backend-driven feature; UI is additive).
+
 ## Validated Changes (Ready to Apply)
 
 ### 1. Markdown Rendering in Chat Responses

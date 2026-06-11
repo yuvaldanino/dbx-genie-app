@@ -12,7 +12,7 @@ PATH="/opt/homebrew/bin:$PATH" DATABRICKS_CLI_PATH=/opt/homebrew/bin/databricks 
 
 - The `PATH` prefix is REQUIRED: two `databricks` CLIs are installed; the legacy v0.18 at `~/Library/Python/3.9/bin` breaks bundle Terraform auth ("legacy databricks CLI detected").
 - deploy.sh does: vite build → bundle deploy → restore Lakebase postgres resource (bundle strips it every time) → UC grants → app deploy.
-- The "WARN (ERROR)" lines on UC GRANT statements are expected noise (grants already exist).
+- UC GRANT lines must say `OK`. (Historical note: until 2026-06-11 the script's hand-rolled JSON escaped backticks as `\``, so every grant silently failed — the old "WARN (ERROR) is expected noise" advice was wrong. The app SP had NO catalog grants until then; fixed by granting catalog-level USE CATALOG/USE SCHEMA/SELECT + genie_app MODIFY + raw_data volume RW.)
 - Transient `cannot read job ... timed out` errors from the Jobs API happen; retry after 60s. If bundle keeps failing but only app code changed, you can deploy the app artifact directly (files must already be uploaded by a previous successful bundle deploy — this does NOT pick up local changes by itself):
   `databricks apps deploy genieapp-dev --profile vm --source-code-path /Workspace/Users/yuval.danino@databricks.com/.bundle/genieapp/dev/files`
 
@@ -33,12 +33,15 @@ Connection details (from `/api/admin/lakebase-test`, admin-only endpoint):
 
 ```bash
 TOKEN=$(databricks auth token --profile vm | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')
-PGPASSWORD="$TOKEN" psql \
+PGPASSWORD="$TOKEN" /opt/homebrew/opt/libpq/bin/psql \
   "host=ep-flat-haze-d2mzy9ui.database.us-east-1.cloud.databricks.com port=5432 dbname=databricks_postgres user=yuval.danino@databricks.com sslmode=require" \
-  -c 'GRANT app_rw TO "677d1641-521c-4df6-91f4-dacea8be74e7";'
+  -c 'GRANT app_rw TO "677d1641-521c-4df6-91f4-dacea8be74e7";' \
+  -c "SELECT pg_has_role('677d1641-521c-4df6-91f4-dacea8be74e7', 'app_rw', 'member');"
 ```
 
-**Status: NOT YET VERIFIED** — local sandbox had no psql/psycopg2 and blocked installs. First agent session: verify this works (install psql via `brew install libpq` or use `uv run --with psycopg2-binary python -c ...`), then wire it into deploy.sh as the final step. Until verified, ask the user to run the GRANT in the Lakebase SQL editor UI.
+**Status: VERIFIED 2026-06-11** (returns `GRANT ROLE` + `t`). psql lives at `/opt/homebrew/opt/libpq/bin/psql` (keg-only, installed via `brew install libpq`). The GRANT is idempotent — safe to run any time. Per user decision this stays a manual agent-run step, NOT wired into deploy.sh.
+
+> **Why this machine can't use pip/uv/bun for new packages**: `/etc/hosts` deliberately pins `pypi.org` (+ ~12 mirrors) and the npm registry to `127.0.0.1` (supply-chain protection). `uv sync` / `bun install` fail with "Connection refused" for anything not already cached. Homebrew (ghcr.io) and github.com are NOT blocked. Do not edit /etc/hosts — work around via brew or vendored deps.
 
 ### Fallback (manual)
 Ask the user: "Run `GRANT app_rw TO "677d1641-521c-4df6-91f4-dacea8be74e7";` in the **Lakebase SQL editor** (the Postgres one, NOT the regular Databricks SQL editor)."

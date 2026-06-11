@@ -27,6 +27,7 @@ All endpoints healthy as of last verification (2026-06-11):
 | "Data disappeared, only Acme shows" (x2) | Postgres pool captured OAuth token once at startup; token expires ~1h; pool reconnects fail silently → app falls back to state.json | `pg.py` rewritten: per-connection token mint, 30min token cache, 50min conn TTL, SELECT 1 validation only when idle >30s, 2-conn pre-warm. Tests: `scripts/test_pg_pool_logic.py` |
 | "Chat stuck on Processing forever" | `/chat/result` used user OBO token for Genie API; platform began enforcing `genie` OAuth scope which OBO tokens lack → 403 → unhandled 500 | `chat.py`: dropped OBO, uses SP client (like `/status` always did), wrapped in try/except returning structured error |
 | 10s+ tail latencies | v1 of pool fix ran SELECT 1 network roundtrip on EVERY checkout | Hot-path skip: validate only if idle >30s |
+| App SP had ZERO UC grants (found 2026-06-11) | deploy.sh's hand-rolled JSON escaped backticks as `\`` (invalid JSON) → CLI rejected every GRANT since the script existed; "WARN (ERROR)" was misread as "grant already exists" noise → SQL re-execution fallback silently failed for all expired results | Grants applied (catalog-level USE CATALOG/USE SCHEMA/SELECT + genie_app MODIFY + volume RW); deploy.sh run_sql rebuilt with json.dumps and loud FAILED output |
 
 **The meta-pattern**: every incident was a long-lived credential trusted forever with no fallback. When touching auth/tokens/connections, always ask: what happens when this expires mid-flight?
 
@@ -50,11 +51,13 @@ The same space answers better at databricks.com/genie than through the app. Diag
 - **Genie space configuration**: pipeline creates bare spaces (`scripts/pipeline/03_create_space.ipynb`, `space_creator.py`). Native spaces people compare against often have curated instructions/sample queries. Add during pipeline: space instructions, column descriptions on UC tables, example SQL per must-answer question. (= "Genie space tuning")
 - **Generated data realism** feeds this too: uniform fake data → boring/garbage answers. Improve distributions (seasonality, power-law, regional correlation), FK consistency, plausible time series (`data_generator_llm.py` spec prompts).
 
-#### 2. Old conversations lose graphs → recompute + precompute
-Root cause chain (all three layers contribute):
-- `/conversations/{conv_id}` (chat.py ~305) re-fetches Genie results with OBO token → 403 (`genie` scope) → silently falls back to metadata-only (text+SQL, no data → no chart). **Fix first: use `ws` like `/chat/result` does.** One-line + already proven.
-- Even with SP, Genie expires query results (`QUERY_RESULT_EXPIRED`) — `_reexecute_sql()` fallback exists (genie_client.py:26) but only triggers inside `get_genie_result`; verify it actually fires on the conversations path and uses a warehouse that's running.
-- UX: add per-message **"Recompute"** button (re-runs the saved SQL via SQL Statements API — cheap, no Genie round-trip needed since `sql_text` is persisted in Postgres messages table) and a **"Precompute all"** button at conversation level so a presenter can warm up an entire demo before showing it. New endpoint e.g. `POST /api/chat/{conv}/{msg}/recompute` → runs `sql_text` → returns same ChatMessageOut shape so existing rendering just works.
+#### 2. Old conversations lose graphs → recompute + precompute — ✅ DONE 2026-06-11
+Root cause chain turned out to be THREE layers, all fixed and verified live (14/15 old messages now return full data, was 3/15):
+- ✅ `/conversations/{conv_id}` used OBO token → 403 (`genie` scope) → silent metadata-only. Fixed: uses `ws` (SP).
+- ✅ **deploy.sh UC grants had never actually applied** (JSON escaping bug, see incident table) — so the `_reexecute_sql()` fallback for expired results always failed with INSUFFICIENT_PERMISSIONS. Fixed: grants applied + script rebuilt.
+- ✅ `_reexecute_sql` gave up at 50s (cold warehouse = silent empty). Now raises on failure and accepts a poll budget; recompute path polls up to 180s extra.
+- ✅ `POST /api/chat/{conv}/{msg}/recompute` (re-runs persisted sql_text, no Genie round-trip) + QueryWorkspace UI: per-message Recompute button, amber "Expired" badge, "Recompute all (N)" in Recent tab. These are now the *recovery* layer — with grants fixed, history re-fetch mostly self-heals inline.
+- **Follow-up (open)**: history load re-fetches messages serially — 40s for a 13-message conversation. Parallelize per-message fetch in `get_conversation_messages_endpoint` (ThreadPoolExecutor) → ~max(single fetch).
 
 #### 3. Embedded "Genie Chat" mode (new nav item)
 A continuous, ChatGPT-style conversation with the space — like native Genie — alongside the existing save-each-query workspace.

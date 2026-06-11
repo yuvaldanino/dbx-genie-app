@@ -12,6 +12,7 @@ from ..db import (
     create_conversation,
     get_conversation,
     get_conversation_messages,
+    get_message,
     get_starred_messages,
     increment_conversation_message_count,
     list_conversations,
@@ -23,6 +24,7 @@ from ..genie_client import (
     ask_genie,
     get_genie_result,
     poll_genie_status,
+    recompute_from_sql,
     send_genie_feedback,
     start_genie_async,
 )
@@ -234,6 +236,49 @@ def get_chat_result(
     return _result_to_response(result)
 
 
+# --- Recompute (re-run persisted SQL, no Genie round-trip) ---
+
+@router.post(
+    "/chat/{conv_id}/{msg_id}/recompute",
+    response_model=ChatMessageOut,
+    operation_id="recomputeMessage",
+)
+def recompute_message(
+    conv_id: str,
+    msg_id: str,
+    ws: Dependencies.Client,
+    request: Request,
+) -> ChatMessageOut:
+    """Re-execute a message's saved SQL to refresh expired result data."""
+    user_id = _get_user_id(request)
+    conv = get_conversation(ws, conv_id)
+    if conv and conv.get("user_id") and conv["user_id"] != user_id:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=403, detail="Not authorized to access this conversation")
+
+    row = get_message(ws, conv_id, msg_id)
+    sql_text = (row or {}).get("sql_text") or ""
+    if not sql_text:
+        result = _error_result(conv_id, RuntimeError("No SQL saved for this message — ask the question again"))
+        result["message_id"] = msg_id
+        return _result_to_response(result)
+
+    try:
+        result = recompute_from_sql(
+            ws,
+            conversation_id=conv_id,
+            message_id=msg_id,
+            sql=sql_text,
+            description=(row or {}).get("description", ""),
+        )
+    except Exception as e:
+        logger.exception("Recompute failed for %s/%s", conv_id, msg_id)
+        result = _error_result(conv_id, e)
+        result["message_id"] = msg_id
+        result["sql"] = sql_text
+    return _result_to_response(result)
+
+
 # --- Feedback ---
 
 @router.post("/chat/feedback", operation_id="sendFeedback")
@@ -286,7 +331,6 @@ def list_conversations_endpoint(
 def get_conversation_messages_endpoint(
     conv_id: str,
     ws: Dependencies.Client,
-    user_ws: Dependencies.OptionalUserClient,
     request: Request,
     space_id: str | None = None,
 ) -> list[ConversationMessageOut]:
@@ -303,8 +347,9 @@ def get_conversation_messages_endpoint(
     if not space_id and conv:
         space_id = conv.get("space_id")
 
-    # Use user's OBO token for Genie API (user owns the conversation)
-    genie_ws = user_ws or ws
+    # Hard rule: genie.* calls MUST use the SP client — OBO tokens lack the
+    # `genie` scope (403) and silently degraded history to metadata-only.
+    genie_ws = ws
 
     messages = []
     for row in rows:
@@ -320,7 +365,7 @@ def get_conversation_messages_endpoint(
                     response = _result_to_response(result)
                     response.is_starred = is_starred
                 except Exception:
-                    logger.debug("Could not re-fetch Genie data for %s/%s", conv_id, msg_id)
+                    logger.warning("Could not re-fetch Genie data for %s/%s — falling back to metadata", conv_id, msg_id)
                     response = None
 
             # Fallback to metadata-only response

@@ -57,27 +57,32 @@ print(next((x['sql_warehouse']['id'] for x in r if 'sql_warehouse' in x), ''))
 echo "  Service principal: $SP_APP_ID"
 echo "  Warehouse: $WAREHOUSE_ID"
 
+# NOTE: payload built via json.dumps — the old hand-rolled JSON escaped backticks
+# as \` (invalid JSON), so the CLI rejected every grant silently for months.
 run_sql() {
   local sql="$1"
-  local result
-  result=$(databricks api post /api/2.0/sql/statements --json "{
-    \"statement\": \"${sql}\",
-    \"warehouse_id\": \"${WAREHOUSE_ID}\",
-    \"wait_timeout\": \"30s\"
-  }" 2>&1)
-  local state
+  local payload result state
+  payload=$(python3 -c 'import json,sys; print(json.dumps({"statement": sys.argv[1], "warehouse_id": sys.argv[2], "wait_timeout": "30s"}))' "$sql" "$WAREHOUSE_ID")
+  result=$(databricks api post /api/2.0/sql/statements --json "$payload" 2>&1)
   state=$(echo "$result" | python3 -c "import sys,json; print(json.load(sys.stdin).get('status',{}).get('state','UNKNOWN'))" 2>/dev/null || echo "ERROR")
   if [ "$state" = "SUCCEEDED" ]; then
     echo "  OK: $sql"
   else
-    echo "  WARN ($state): $sql"
+    echo "  FAILED ($state): $sql"
+    echo "$result" | head -3
+    return 1
   fi
 }
 
-run_sql "GRANT USE_CATALOG ON CATALOG ${CATALOG} TO \\\`${SP_APP_ID}\\\`" || true
-run_sql "GRANT USE_SCHEMA, SELECT, MODIFY ON SCHEMA ${CATALOG}.${SCHEMA} TO \\\`${SP_APP_ID}\\\`" || true
-run_sql "GRANT READ_VOLUME, WRITE_VOLUME ON VOLUME ${CATALOG}.${SCHEMA}.${VOLUME} TO \\\`${SP_APP_ID}\\\`" || true
-echo "UC permissions granted (or already exist)."
+GRANTS_OK=1
+run_sql "GRANT USE CATALOG, USE SCHEMA, SELECT ON CATALOG ${CATALOG} TO \`${SP_APP_ID}\`" || GRANTS_OK=0
+run_sql "GRANT MODIFY ON SCHEMA ${CATALOG}.${SCHEMA} TO \`${SP_APP_ID}\`" || GRANTS_OK=0
+run_sql "GRANT READ VOLUME, WRITE VOLUME ON VOLUME ${CATALOG}.${SCHEMA}.${VOLUME} TO \`${SP_APP_ID}\`" || GRANTS_OK=0
+if [ "$GRANTS_OK" = "1" ]; then
+  echo "UC permissions granted."
+else
+  echo "⚠️  Some UC grants FAILED — SQL re-execution/recompute will break. Fix before relying on the app."
+fi
 
 # 5. Deploy app
 echo ""

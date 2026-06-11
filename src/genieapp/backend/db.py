@@ -284,6 +284,19 @@ def get_conversation_messages(
     )
 
 
+def get_message(
+    ws: WorkspaceClient,
+    conversation_id: str,
+    message_id: str,
+) -> dict[str, Any] | None:
+    """Get a single message by conversation + message ID."""
+    rows = execute_query(
+        "SELECT * FROM messages WHERE conversation_id = %s AND message_id = %s LIMIT 1",
+        (conversation_id, message_id),
+    )
+    return dict(rows[0]) if rows else None
+
+
 def toggle_star_message(
     ws: WorkspaceClient,
     message_id: str,

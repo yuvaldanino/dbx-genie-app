@@ -199,6 +199,17 @@ export async function sendFeedback(feedback: FeedbackIn): Promise<void> {
   await api.post("/chat/feedback", feedback);
 }
 
+/** Re-run a message's saved SQL to refresh expired result data. Slow on cold warehouse. */
+export async function recomputeMessage(
+  conversationId: string,
+  messageId: string,
+): Promise<ChatMessageOut> {
+  const { data } = await api.post<ChatMessageOut>(
+    `/chat/${conversationId}/${messageId}/recompute`,
+  );
+  return data;
+}
+
 export async function listTables(): Promise<TableInfoOut[]> {
   const { data } = await api.get<TableInfoOut[]>("/tables");
   return data;

@@ -50,6 +50,8 @@ export interface ChatMessageOut {
   message_id: string;
   status: string;
   description: string;
+  /** Genie's "Would you prefer…?" offer — separate from the narrative. */
+  follow_up_text?: string;
   sql: string;
   columns: string[];
   data: Record<string, string | number | null>[];

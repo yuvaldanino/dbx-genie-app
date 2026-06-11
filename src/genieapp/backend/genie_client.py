@@ -257,20 +257,26 @@ def _parse_genie_response(
     message_id = resp.message_id or resp.id or ""
     status = "COMPLETED"
     description = ""
+    follow_up_text = ""
     sql = ""
     query_description = ""
     columns: list[str] = []
     data: list[dict] = []
     suggested_questions: list[str] = []
+    texts: list[str] = []
     is_truncated = False
     is_clarification = False
     error = None
 
     if resp.attachments:
         for attachment in resp.attachments:
-            # Text attachment
+            # Text attachment — collect ALL of them. Genie typically returns a
+            # narrative AND a "Would you prefer…?" follow-up offer; the old code
+            # kept only the last text, so the UI randomly showed the dangling
+            # follow-up instead of the actual answer (parity Finding 3).
             if attachment.text:
-                description = attachment.text.content or ""
+                if attachment.text.content:
+                    texts.append(attachment.text.content)
                 # Clarification detection
                 if attachment.text.purpose:
                     purpose_str = str(attachment.text.purpose.value) if hasattr(attachment.text.purpose, 'value') else str(attachment.text.purpose)
@@ -336,6 +342,15 @@ def _parse_genie_response(
                     q for q in attachment.suggested_questions.questions if q
                 ]
 
+    # Split narrative vs follow-up offer: when multiple texts exist and the
+    # last one is a question, surface it separately instead of overwriting
+    # the narrative. A single text (incl. clarifications) stays description.
+    if len(texts) > 1 and texts[-1].rstrip().endswith("?"):
+        follow_up_text = texts[-1].strip()
+        description = "\n\n".join(t for t in texts[:-1] if t)
+    else:
+        description = "\n\n".join(t for t in texts if t)
+
     # Error from message
     if resp.error:
         error = resp.error.error or "Unknown error"
@@ -349,6 +364,7 @@ def _parse_genie_response(
         "message_id": message_id,
         "status": status,
         "description": description,
+        "follow_up_text": follow_up_text,
         "sql": sql,
         "query_description": query_description,
         "columns": columns,

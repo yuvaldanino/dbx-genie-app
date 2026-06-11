@@ -31,8 +31,9 @@ Thumbs.db
 .env
 .env.local
 
-# Node
-node_modules/
+# Node (no trailing slash — must also match the SYMLINKS in git worktrees)
+node_modules
+.venv
 
 # APX generated (kept for deployment — not gitignored)
 # src/genieapp/__dist__/

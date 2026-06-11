@@ -342,14 +342,21 @@ def _parse_genie_response(
                     q for q in attachment.suggested_questions.questions if q
                 ]
 
-    # Split narrative vs follow-up offer: when multiple texts exist and the
-    # last one is a question, surface it separately instead of overwriting
-    # the narrative. A single text (incl. clarifications) stays description.
-    if len(texts) > 1 and texts[-1].rstrip().endswith("?"):
-        follow_up_text = texts[-1].strip()
-        description = "\n\n".join(t for t in texts[:-1] if t)
+    # Split narrative vs follow-up offer. Attachment ORDER varies (offer can
+    # come first or last), so classify by shape: short question starting with
+    # an offer phrase. A single text (incl. clarifications) stays description.
+    _OFFERS = ("would you", "do you want", "would you like", "should i",
+               "are you interested", "want me to", "shall i")
+    if len(texts) > 1:
+        narrative = [t for t in texts
+                     if not (t.strip().rstrip().endswith("?") and t.strip().lower().startswith(_OFFERS))]
+        offers = [t.strip() for t in texts if t not in narrative]
+        if not narrative:  # everything looked like an offer — keep first as the answer
+            narrative, offers = [texts[0]], [t.strip() for t in texts[1:]]
+        description = "\n\n".join(narrative)
+        follow_up_text = "\n\n".join(offers)
     else:
-        description = "\n\n".join(t for t in texts if t)
+        description = texts[0] if texts else ""
 
     # Error from message
     if resp.error:

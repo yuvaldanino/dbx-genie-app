@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> **⚠️ PARALLEL PHASE ACTIVE (since 2026-06-11)**: two sessions work concurrently — A: `feat/genie-parity` (main checkout), B: `feat/genie-chat-mode` (worktree `../dbx-genie-app-chatmode`). Contract + file ownership: **`docs/worklogs/PARALLEL_PLAN.md`** — read it before changing anything. Shared docs (this file included) are frozen on feature branches.
+
 ## START HERE (handoff docs)
 
 - **`docs/PROJECT_STATE.md`** — current state, incident history, known bugs, prioritized roadmap, working agreements

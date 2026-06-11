@@ -588,6 +588,13 @@ function QueryResult({
         </div>
       )}
 
+      {/* Genie's follow-up offer — render as a subtle hint, not the answer */}
+      {r.follow_up_text && (
+        <p className="text-xs text-muted-foreground italic px-1">
+          💡 {r.follow_up_text}
+        </p>
+      )}
+
       {/* SQL */}
       {r.sql && (
         <Card className="overflow-hidden">

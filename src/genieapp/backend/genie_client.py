@@ -257,20 +257,26 @@ def _parse_genie_response(
     message_id = resp.message_id or resp.id or ""
     status = "COMPLETED"
     description = ""
+    follow_up_text = ""
     sql = ""
     query_description = ""
     columns: list[str] = []
     data: list[dict] = []
     suggested_questions: list[str] = []
+    texts: list[str] = []
     is_truncated = False
     is_clarification = False
     error = None
 
     if resp.attachments:
         for attachment in resp.attachments:
-            # Text attachment
+            # Text attachment — collect ALL of them. Genie typically returns a
+            # narrative AND a "Would you prefer…?" follow-up offer; the old code
+            # kept only the last text, so the UI randomly showed the dangling
+            # follow-up instead of the actual answer (parity Finding 3).
             if attachment.text:
-                description = attachment.text.content or ""
+                if attachment.text.content:
+                    texts.append(attachment.text.content)
                 # Clarification detection
                 if attachment.text.purpose:
                     purpose_str = str(attachment.text.purpose.value) if hasattr(attachment.text.purpose, 'value') else str(attachment.text.purpose)
@@ -336,6 +342,22 @@ def _parse_genie_response(
                     q for q in attachment.suggested_questions.questions if q
                 ]
 
+    # Split narrative vs follow-up offer. Attachment ORDER varies (offer can
+    # come first or last), so classify by shape: short question starting with
+    # an offer phrase. A single text (incl. clarifications) stays description.
+    _OFFERS = ("would you", "do you want", "would you like", "should i",
+               "are you interested", "want me to", "shall i")
+    if len(texts) > 1:
+        narrative = [t for t in texts
+                     if not (t.strip().rstrip().endswith("?") and t.strip().lower().startswith(_OFFERS))]
+        offers = [t.strip() for t in texts if t not in narrative]
+        if not narrative:  # everything looked like an offer — keep first as the answer
+            narrative, offers = [texts[0]], [t.strip() for t in texts[1:]]
+        description = "\n\n".join(narrative)
+        follow_up_text = "\n\n".join(offers)
+    else:
+        description = texts[0] if texts else ""
+
     # Error from message
     if resp.error:
         error = resp.error.error or "Unknown error"
@@ -349,6 +371,7 @@ def _parse_genie_response(
         "message_id": message_id,
         "status": status,
         "description": description,
+        "follow_up_text": follow_up_text,
         "sql": sql,
         "query_description": query_description,
         "columns": columns,

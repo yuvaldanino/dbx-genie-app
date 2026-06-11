@@ -79,6 +79,7 @@ class ChatMessageOut(BaseModel):
     message_id: str = ""
     status: str  # COMPLETED, FAILED, etc.
     description: str = ""
+    follow_up_text: str = ""  # Genie's "Would you prefer…?" offer (separate from narrative)
     sql: str = ""
     columns: list[str] = []
     data: list[dict] = []

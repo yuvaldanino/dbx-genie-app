@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import threading
 
 from fastapi import APIRouter, HTTPException, Request
 
@@ -232,7 +233,41 @@ def register_pipeline_space(
         tables_json=row.get("tables_json", "[]"),
         sample_questions_json=row.get("sample_questions_json", "[]"),
     )
+
+    # Fire-and-forget: replace the pipeline's weak instructions with rich ones
+    # generated from live UC metadata (~30-60s of profiling — don't block
+    # registration). Best-effort: failures are logged, never break register.
+    _launch_instruction_enrich(
+        ws,
+        space_id=req.space_id,
+        tables_json=row.get("tables_json", "[]"),
+        description=row.get("description", ""),
+    )
     return _row_to_space_out(new_row)
+
+
+def _launch_instruction_enrich(ws, space_id: str, tables_json: str, description: str) -> None:
+    """Spawn a daemon thread that enriches a new space's Genie instructions."""
+    try:
+        tables = [
+            t.get("full_name", "")
+            for t in json.loads(tables_json or "[]")
+            if isinstance(t, dict) and t.get("full_name")
+        ]
+    except (json.JSONDecodeError, TypeError):
+        tables = []
+    if not tables:
+        logger.warning("No tables for instruction enrich of %s — skipped", space_id)
+        return
+
+    def _run() -> None:
+        try:
+            from ..pipeline.instruction_builder import enrich_space_instructions
+            enrich_space_instructions(ws, WAREHOUSE_ID, space_id, tables, description)
+        except Exception:
+            logger.exception("Instruction enrich crashed for %s", space_id)
+
+    threading.Thread(target=_run, daemon=True, name=f"enrich-{space_id[:8]}").start()
 
 
 # --- Template selection ---

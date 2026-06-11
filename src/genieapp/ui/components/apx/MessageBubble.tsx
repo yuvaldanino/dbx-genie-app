@@ -252,6 +252,13 @@ export function MessageBubble({ question, response, onAskQuestion }: MessageBubb
               </div>
             )}
 
+            {/* Genie's follow-up offer — subtle hint, not part of the answer */}
+            {response.follow_up_text && (
+              <p className="text-xs text-muted-foreground italic">
+                💡 {response.follow_up_text}
+              </p>
+            )}
+
             {/* Suggested follow-up questions */}
             {response.suggested_questions.length > 0 && onAskQuestion && (
               <div className="flex flex-wrap gap-1.5 pt-1">

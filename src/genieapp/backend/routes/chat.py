@@ -67,6 +67,7 @@ def _result_to_response(result: dict) -> ChatMessageOut:
         message_id=result.get("message_id", ""),
         status=result["status"],
         description=result.get("description", ""),
+        follow_up_text=result.get("follow_up_text", ""),
         sql=result.get("sql", ""),
         columns=result.get("columns", []),
         data=result.get("data", []),
@@ -167,12 +168,21 @@ def start_chat(
     """Start a Genie message without waiting for completion."""
     space_id = _resolve_space_id(msg.space_id)
     user_id = _get_user_id(request)
-    result = start_genie_async(
-        ws=ws,
-        space_id=space_id,
-        question=msg.question,
-        conversation_id=msg.conversation_id,
-    )
+    try:
+        result = start_genie_async(
+            ws=ws,
+            space_id=space_id,
+            question=msg.question,
+            conversation_id=msg.conversation_id,
+        )
+    except Exception:
+        if not msg.conversation_id:
+            raise
+        # Stale/cross-space conversation_id (e.g. old URL param) — fall back to
+        # a fresh conversation instead of 500ing mid-demo.
+        logger.warning("start_chat: conversation %s invalid for space %s — starting fresh",
+                       msg.conversation_id, space_id)
+        result = start_genie_async(ws=ws, space_id=space_id, question=msg.question, conversation_id=None)
     conv_id = result["conversation_id"]
     msg_id = result["message_id"]
     if conv_id and not msg.ephemeral:

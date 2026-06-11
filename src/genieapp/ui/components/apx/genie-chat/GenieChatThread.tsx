@@ -78,7 +78,7 @@ export function GenieChatThread({ spaceId, config, onNewChat }: GenieChatThreadP
   const empty = messages.length === 0;
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="flex flex-col h-full min-h-0 overflow-hidden">
       {/* Header */}
       <div className="border-b px-4 py-2.5 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2 min-w-0">
@@ -102,8 +102,11 @@ export function GenieChatThread({ spaceId, config, onNewChat }: GenieChatThreadP
         </Button>
       </div>
 
-      {/* Thread (plain overflow div so useChatFlow's scrollRef auto-scroll works) */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto">
+      {/* Thread (plain overflow div so useChatFlow's scrollRef auto-scroll works).
+          min-h-0: Safari needs the explicit flex minimum to keep this scroller
+          contained. overscroll-contain: when the thread hits its end, do NOT
+          chain the scroll to the document (whole-page bounce below the input). */}
+      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
         <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
           {empty ? (
             <div className="flex flex-col items-center justify-center text-center pt-16 gap-4">

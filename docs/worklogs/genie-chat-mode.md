@@ -36,3 +36,10 @@
 - Console: zero errors/warnings ✓ · Dark + light mode screenshots reviewed, branding correct ✓
 - Gates: `vite build` ✓ (3.5s) · `tsc --noEmit` 23 errors, ALL in pre-existing files (ExportButton/admin/test-*) — zero added ✓
 - Clarification rendering observed live (Genie asked "Would you prefer total revenue instead?" + still returned data) — rendered sanely ✓
+
+### 2026-06-11 — User-reported scroll bug fixed
+
+**Report**: on long threads, scrolling past the newest message scrolled the WHOLE page into blank space below the input.
+**Diagnosis**: Chrome layout was verified contained (injected 6,300px of fake messages — document never became scrollable), so the symptom is scroll **chaining**/macOS rubber-band hand-off when the inner scroller hits its end (worst on Safari/trackpads, which also need an explicit flex `min-height: 0`).
+**Fix** (`GenieChatThread.tsx`, className-only): thread scroller `flex-1 min-h-0 overflow-y-auto overscroll-contain`; root gains `min-h-0`.
+**Verified**: computed styles live via HMR (`overscroll-behavior-y: contain`, `min-height: 0px`); thread scrolled to bottom + 10 synthetic wheel events on thread AND window → `window.scrollY` stayed 0, document not scrollable; tsc still 23 pre-existing errors (zero added).

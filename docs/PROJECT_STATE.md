@@ -30,34 +30,64 @@ All endpoints healthy as of last verification (2026-06-11):
 
 **The meta-pattern**: every incident was a long-lived credential trusted forever with no fallback. When touching auth/tokens/connections, always ask: what happens when this expires mid-flight?
 
-## Known bugs (unfixed, prioritized)
+## North star (set by user, 2026-06-11)
 
-1. **Non-ASCII input crashes space creation** — `spaces.py:459` `ws.jobs.run_now` rejects non-Latin1 chars (curly quotes, em-dashes, emojis) in notebook params with 500. Fix: validate in POST /api/spaces handler, return friendly 400, or transliterate. ~20 lines.
-2. **`/conversations/{id}` (chat.py ~line 305) still prefers OBO** for Genie re-fetch. Degrades gracefully (metadata-only fallback) but history view loses data tables. Fix: same as `/chat/result` — drop `user_ws or ws`, use `ws`.
-3. **Manual GRANT after every deploy** — see OPERATIONS.md. The single biggest operational hazard. Should be automated in deploy.sh.
-4. **First user request after idle is slow** — SQL warehouse cold start (~1-3 min). Consider keep-alive ping or messaging in UI.
-5. **2MB JS bundle** — no code splitting. Vite warns on every build.
-6. **Dead code** — `backend/router.py` is an unused legacy monolith.
+> The app must feel as **smooth and trustworthy as the native Databricks Genie experience**. Right now it feels janky — good idea, weak execution polish. The user wants to be *proud* to share this with all of Databricks. Every change should be judged against: "does this make it feel more like the Databricks ecosystem, and do users always get good results?"
 
-## Improvement roadmap (agreed with user 2026-06-11)
+The two biggest user-reported problems, verbatim:
+1. "Sometimes the results are absolute garbage" — and **the same Genie space gives noticeably better answers on the native Databricks Genie page than through this app**. Closing that gap is the #1 quality goal.
+2. Old conversations "tweak out": you open a recent question and get text + SQL but **no graphs/data**.
 
-### Tier 1 — Reliability (do first)
-- [x] Pool token refresh (deployed, verified)
-- [ ] **Automate post-deploy GRANT** — psql command is documented in OPERATIONS.md but **NOT YET VERIFIED** (sandbox lacked psql). First: verify it works, then wire into deploy.sh as final step. Until then the user runs it manually.
-- [ ] **Health probe job** — every 30 min, full chat flow against a shared space, post status to Slack (user is getting webhook approved; design exists in git history of plan files: ephemeral chat → status → result → Slack webhook with ✅/⚠️/❌)
-- [ ] ASCII input validation (bug #1)
-- [ ] Fix `/conversations/{id}` OBO (bug #2)
+## Improvement roadmap (re-prioritized with user, 2026-06-11)
 
-### Tier 2 — Result quality (user's main dissatisfaction)
-- [ ] **Generated data realism** — current Faker data is too uniform; needs realistic distributions (seasonality, power-law sales, regional correlations), cross-table FK consistency, plausible time series
-- [ ] **Genie space tuning** — add instructions, sample SQL, column descriptions during pipeline so Genie answers better
-- [ ] **Chart selection** — heuristics in `chart_suggest.py` are basic
+### P0 — The big four (work these first)
 
-### Tier 3 — Features
-- [ ] Space sharing between users
-- [ ] Dashboard view improvements
-- [ ] Conversation export polish
-- [ ] Admin panel improvements
+#### 1. Result-quality parity with native Genie
+The same space answers better at databricks.com/genie than through the app. Diagnose before fixing — likely contributors to investigate, in order:
+- **Conversation context**: native Genie keeps a running conversation (follow-ups refine results). The app's QueryWorkspace treats questions independently — check whether `conversation_id` is reused or each question starts fresh (`useChatFlow.ts`, `chat/start` body). Fresh conversations = Genie loses context = worse answers.
+- **Response handling**: compare raw `GenieMessage` attachments for the same question asked natively vs through the app. The app may be dropping clarifications, suggested follow-ups, or text the native UI surfaces (`genie_client.py:_parse_genie_response`).
+- **Result truncation**: check `is_truncated` handling and row limits; the app may render partial data without saying so.
+- **Genie space configuration**: pipeline creates bare spaces (`scripts/pipeline/03_create_space.ipynb`, `space_creator.py`). Native spaces people compare against often have curated instructions/sample queries. Add during pipeline: space instructions, column descriptions on UC tables, example SQL per must-answer question. (= "Genie space tuning")
+- **Generated data realism** feeds this too: uniform fake data → boring/garbage answers. Improve distributions (seasonality, power-law, regional correlation), FK consistency, plausible time series (`data_generator_llm.py` spec prompts).
+
+#### 2. Old conversations lose graphs → recompute + precompute
+Root cause chain (all three layers contribute):
+- `/conversations/{conv_id}` (chat.py ~305) re-fetches Genie results with OBO token → 403 (`genie` scope) → silently falls back to metadata-only (text+SQL, no data → no chart). **Fix first: use `ws` like `/chat/result` does.** One-line + already proven.
+- Even with SP, Genie expires query results (`QUERY_RESULT_EXPIRED`) — `_reexecute_sql()` fallback exists (genie_client.py:26) but only triggers inside `get_genie_result`; verify it actually fires on the conversations path and uses a warehouse that's running.
+- UX: add per-message **"Recompute"** button (re-runs the saved SQL via SQL Statements API — cheap, no Genie round-trip needed since `sql_text` is persisted in Postgres messages table) and a **"Precompute all"** button at conversation level so a presenter can warm up an entire demo before showing it. New endpoint e.g. `POST /api/chat/{conv}/{msg}/recompute` → runs `sql_text` → returns same ChatMessageOut shape so existing rendering just works.
+
+#### 3. Embedded "Genie Chat" mode (new nav item)
+A continuous, ChatGPT-style conversation with the space — like native Genie — alongside the existing save-each-query workspace.
+- New sidebar nav button "Genie Chat" → new route `ui/routes/_sidebar/genie-chat.tsx`
+- Implementation: reuse the existing backend entirely — `chat/start` already accepts `conversation_id` for continuation and `ephemeral: true` to skip persistence. The new UI keeps one conversation_id for the session and renders a scrolling thread (MessageBubble components exist).
+- Not persisted: each app visit starts a fresh thread (per user decision). No DB changes needed.
+- Do NOT iframe the actual Databricks Genie page — app auth headers/X-Frame-Options will fight you; the API path above gives the same experience in-brand.
+- Result: three modes per space — Genie Chat (free conversation), Chat workspace (saved/starred queries, recents), Dashboard (precomputed + drawer).
+
+#### 4. Smoothness / Databricks-ecosystem polish pass
+The "janky" feeling. Sweep for:
+- Loading states everywhere (skeletons not spinners where possible), optimistic UI, transitions
+- Error handling: friendly toasts instead of blank screens or stuck spinners (some errors still swallow silently)
+- Warehouse cold-start: first query after idle takes 1-3 min — show "warehouse warming up" messaging instead of an opaque wait, or fire a warehouse keep-alive/wake ping on app load
+- Visual alignment with Databricks design language (spacing, typography, nav patterns)
+- **Recommended questions always visible**: persistent left-panel list (sidebar section under Tables/History) showing the space's must-answer/sample questions (`sample_questions_json` on the space row) + Genie's suggested follow-ups; click → runs it. Demo presenters lean on this.
+
+### P1 — Worth doing, small
+- [ ] **Health probe → Slack** — user HAS a webhook ready (Slack app created; ask user for the URL, store in Databricks secret scope, never in git). Every 30 min: ephemeral chat flow against a shared space → post ✅ healthy / ⚠️ degraded / ❌ down with latency + error. Scheduled Databricks job (`resources/`), ~150-line script.
+- [ ] **ASCII input validation** — `spaces.py:459` Jobs API rejects non-Latin1 (curly quotes, emojis) → 500. Validate/transliterate in POST /api/spaces, friendly 400. ~20 lines.
+
+### P2 — Later (explicitly deprioritized by user)
+- [ ] Better dashboard ("would be sick" — but after P0)
+- [ ] Admin panel improvements (late phase)
+- [ ] ~~Automate post-deploy GRANT~~ — **user decision: manual is fine.** Deploys are infrequent; do NOT add automation overhead. The psql command stays documented in OPERATIONS.md if ever wanted.
+- [ ] ~~Space sharing~~ — not needed right now
+- [ ] 2MB JS bundle code-splitting; remove dead code (`router.py`, Delta shadow tables in `ensure_tables`)
+
+## Secondary known bugs (not user-priorities, keep on radar)
+
+- Email columns in generated data sometimes get numeric values (spec issue)
+- Formula-derived columns occasionally produce 0 on eval failure
+- Pipeline notebooks duplicate logic from `backend/pipeline/` Python modules
 
 ## Working agreements (how the user likes to work)
 

@@ -33,6 +33,14 @@ Verification of claims = artifact diffs, summarized below when probe completes.
 4. **Parser fix** (Finding 3): collect ALL text attachments; narrative→description, trailing question→new `follow_up_text` field (additive — B's ChatMessageOut literals unaffected, TS field optional); QueryWorkspace renders it as a hint line. start_chat cross-space conversation_id → fresh-conversation fallback (was 500).
 5. **Integration note for B's Genie Chat**: render `follow_up_text` as a tappable chip in the thread (post-merge polish; B's PR is frozen by contract).
 
+### 2026-06-11 — Rollout + live verification (deployed from this branch)
+
+- **All 25 active spaces retuned, 100% VERIFIED** (log: /tmp/retune_all.log; backups: /tmp/retune_backup/). Range: Footlocker 17ch→7236ch, Starbucks 237ch→7625ch; several capped at 8993ch (MAX_CHARS — consider bumping later).
+- Parser deployed; split heuristic v2 (classify by SHAPE — offer text can arrive before the narrative). Live spot check: `description` = narrative, `follow_up_text` = "Would you prefer…" ✓
+- deploy.sh UC grant lines: first all-`OK:` run (profile fix held).
+- verify_live: smoke green, history 14/16 with data at ~1.5-2s/conversation, chat flow green.
+- **Remaining on this branch**: wire instruction generation into NEW space creation (pipeline currently still uses the old faker-format builder; cleanest = generate server-side on `/api/spaces/register` using instruction_builder, since the app SP now has UC perms). Then PR.
+
 ### 2026-06-11 — Finding 1 (measured): live spaces are effectively UNINSTRUCTED
 
 `GET /api/2.0/genie/spaces/{id}?include_serialized_space=true` on Coca-Cola:
